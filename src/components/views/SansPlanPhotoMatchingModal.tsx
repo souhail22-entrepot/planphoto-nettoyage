@@ -43,7 +43,7 @@ export default function SansPlanPhotoMatchingModal({ onClose }: Props) {
   const currentProjectId = useAppStore((s) => s.currentProjectId)
   const project          = useAppStore((s) => s.projects.find((p) => p.id === s.currentProjectId))
   const travaux_sans_plan = useAppStore((s) =>
-    s.travaux.filter((t) => !t.planId && (!s.currentProjectId || s.plans.filter((p) => p.projectId === s.currentProjectId).every((p) => p.id !== t.planId)))
+    s.travaux.filter((t) => !t.planId && t.projectId === s.currentProjectId)
   )
   const systemes        = project?.systemes ?? []
   const updateTravail   = useAppStore((s) => s.updateTravail)

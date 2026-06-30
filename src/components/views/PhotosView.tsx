@@ -111,7 +111,10 @@ export default function PhotosView() {
   const project          = useAppStore((s) => s.projects.find((p) => p.id === s.currentProjectId))
   const plans            = useAppStore((s) => s.plans.filter((p) => p.projectId === currentProjectId))
   const planIds          = plans.map((p) => p.id)
-  const travaux          = useAppStore((s) => s.travaux.filter((t) => !t.planId || planIds.includes(t.planId)))
+  const travaux          = useAppStore((s) => {
+    const pIds = new Set(s.plans.filter((p) => p.projectId === s.currentProjectId).map((p) => p.id))
+    return s.travaux.filter((t) => t.planId ? pIds.has(t.planId) : t.projectId === s.currentProjectId)
+  })
   const interventions    = useAppStore((s) => s.interventions.filter((i) => i.projectId === currentProjectId))
 
   if (!project) return null

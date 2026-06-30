@@ -15,7 +15,7 @@ function PortesSummary() {
   const allDoors = plans.flatMap((plan) => (plan.accessDoors ?? []).map((d) => ({ ...d, planId: plan.id })))
   const planIds = new Set(plans.map((p) => p.id))
   const sansPlanLibres = travaux
-    .filter((t) => !t.planId || !planIds.has(t.planId))
+    .filter((t) => !t.planId && t.projectId === currentProjectId)
     .flatMap((t) => {
       const sys = systemes.find((s) => s.id === t.systemeId)
       return (t.portesInstalleesLibres ?? []).map((p) => ({ ...p, systemeId: t.systemeId, sysNom: sys?.nom ?? 'Non assigné' }))
@@ -164,7 +164,7 @@ export default function PortesView() {
   const systemes    = project?.systemes ?? []
   const planIdSet   = new Set(plans.map((p) => p.id))
   const sansPlanDoors = travaux
-    .filter((t) => !t.planId || !planIdSet.has(t.planId))
+    .filter((t) => !t.planId && t.projectId === currentProjectId)
     .flatMap((t) => {
       const sys = systemes.find((s) => s.id === t.systemeId)
       return (t.portesInstalleesLibres ?? []).map((p) => ({

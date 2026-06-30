@@ -271,7 +271,10 @@ export default function ReportView() {
   const project      = useAppStore((s) => s.projects.find((p) => p.id === s.currentProjectId))
   const companyLogo  = useAppStore((s) => s.companyLogo)
   const plans        = useAppStore((s) => s.plans.filter((p) => p.projectId === currentProjectId))
-  const allTravaux      = useAppStore((s) => s.travaux.filter((t) => !t.planId || plans.map((p) => p.id).includes(t.planId)))
+  const allTravaux      = useAppStore((s) => {
+    const planIds = new Set(s.plans.filter((p) => p.projectId === s.currentProjectId).map((p) => p.id))
+    return s.travaux.filter((t) => t.planId ? planIds.has(t.planId) : t.projectId === s.currentProjectId)
+  })
   const allZones        = useAppStore((s) => s.zones.filter((z) => plans.map((p) => p.id).includes(z.planId)))
   const allInterventions = useAppStore((s) => s.interventions.filter((i) => i.projectId === currentProjectId))
   const reportSections = useAppStore((s) => s.reportSections)
