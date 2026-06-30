@@ -13,7 +13,10 @@ export default function Dashboard({ onNavigate }: Props) {
   const currentProjectId = useAppStore((s) => s.currentProjectId)
   const project   = useAppStore((s) => s.projects.find((p) => p.id === s.currentProjectId))
   const plans     = useAppStore((s) => s.plans.filter((p) => p.projectId === currentProjectId))
-  const allTravaux = useAppStore((s) => s.travaux.filter((t) => plans.map((p) => p.id).includes(t.planId)))
+  const allTravaux = useAppStore((s) => {
+    const pIds = new Set(s.plans.filter((p) => p.projectId === s.currentProjectId).map((p) => p.id))
+    return s.travaux.filter((t) => t.planId ? pIds.has(t.planId) : t.projectId === s.currentProjectId)
+  })
 
   if (!project) return null
 

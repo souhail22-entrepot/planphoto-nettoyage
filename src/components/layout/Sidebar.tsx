@@ -30,7 +30,10 @@ export default function Sidebar({ currentView, onViewChange }: Props) {
   const setCurrentPlan = useAppStore((s) => s.setCurrentPlan)
   const deletePlan     = useAppStore((s) => s.deletePlan)
   const updatePlan     = useAppStore((s) => s.updatePlan)
-  const travaux        = useAppStore((s) => s.travaux.filter((t) => plans.map((p) => p.id).includes(t.planId)))
+  const travaux        = useAppStore((s) => {
+    const pIds = new Set(s.plans.filter((p) => p.projectId === s.currentProjectId).map((p) => p.id))
+    return s.travaux.filter((t) => t.planId ? pIds.has(t.planId) : t.projectId === s.currentProjectId)
+  })
 
   const total = travaux.length
 

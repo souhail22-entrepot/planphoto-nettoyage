@@ -461,7 +461,13 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           projects:    [...s.projects.filter((p) => p.id !== proj.id), proj],
           plans:       [...s.plans.filter((p) => !planIds.includes(p.id)), ...(data.plans ?? [])],
-          travaux:     [...s.travaux.filter((t) => !planIds.includes(t.planId)), ...(data.travaux ?? [])],
+          // Supprime les travaux avec plan ET sans plan de ce projet, puis ré-importe avec projectId garanti
+          travaux: [
+            ...s.travaux.filter((t) =>
+              t.planId ? !planIds.includes(t.planId) : t.projectId !== proj.id
+            ),
+            ...(data.travaux ?? []).map((t: any) => ({ ...t, projectId: proj.id })),
+          ],
           annotations: [...s.annotations.filter((a) => !planIds.includes(a.planId)), ...(data.annotations ?? [])],
           history:     data.history ?? s.history,
           currentProjectId:  proj.id,
@@ -1249,10 +1255,11 @@ export const useAppStore = create<AppState>()(
           allProjects.forEach((p: any) => {
             (p.systemes ?? []).forEach((s: any) => { if (s.id) systemeProjectMap[s.id] = p.id })
           })
-          return (persisted.travaux ?? []).map((t: any) => {
-            if (t.projectId) return t
+          return (persisted.travaux ?? []).flatMap((t: any) => {
+            if (t.projectId) return [t]
             const pid = t.planId ? planProjectMap[t.planId] : systemeProjectMap[t.systemeId]
-            return pid ? { ...t, projectId: pid } : t
+            if (!pid) return []   // orphelin non attribuable → supprimé
+            return [{ ...t, projectId: pid }]
           })
         })(),
         zones: persisted.zones ?? [],

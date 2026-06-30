@@ -8,7 +8,10 @@ import type { AccessDoorType, StatutPorte } from '@/types'
 function PortesSummary() {
   const currentProjectId = useAppStore((s) => s.currentProjectId)
   const plans   = useAppStore((s) => s.plans.filter((p) => p.projectId === currentProjectId))
-  const travaux = useAppStore((s) => s.travaux)
+  const travaux = useAppStore((s) => {
+    const pIds = new Set(s.plans.filter((p) => p.projectId === s.currentProjectId).map((p) => p.id))
+    return s.travaux.filter((t) => t.planId ? pIds.has(t.planId) : t.projectId === s.currentProjectId)
+  })
   const project = useAppStore((s) => s.projects.find((p) => p.id === currentProjectId))
   const systemes = project?.systemes ?? []
 
@@ -146,7 +149,10 @@ function PortesSummary() {
 export default function PortesView() {
   const currentProjectId  = useAppStore((s) => s.currentProjectId)
   const plans             = useAppStore((s) => s.plans.filter((p) => p.projectId === currentProjectId))
-  const travaux           = useAppStore((s) => s.travaux)
+  const travaux           = useAppStore((s) => {
+    const pIds = new Set(s.plans.filter((p) => p.projectId === s.currentProjectId).map((p) => p.id))
+    return s.travaux.filter((t) => t.planId ? pIds.has(t.planId) : t.projectId === s.currentProjectId)
+  })
   const removeAccessDoor  = useAppStore((s) => s.removeAccessDoor)
   const updatePlan        = useAppStore((s) => s.updatePlan)
   const setCurrentPlan    = useAppStore((s) => s.setCurrentPlan)
