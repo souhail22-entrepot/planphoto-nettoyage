@@ -172,7 +172,7 @@ export default function Sidebar({ currentView, onViewChange }: Props) {
                 }`}
               >
                 <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="text-xs truncate flex-1">{p.name}</span>
+                <span className="text-xs flex-1 break-words leading-snug line-clamp-2" title={p.name}>{p.name}</span>
                 <button onClick={(e) => { e.stopPropagation(); if (window.confirm('Supprimer ce projet ?')) deleteProject(p.id) }}
                   className="opacity-0 group-hover:opacity-100 text-gray-700 hover:text-red-400 transition-all">
                   <Trash2 className="w-3 h-3" />
