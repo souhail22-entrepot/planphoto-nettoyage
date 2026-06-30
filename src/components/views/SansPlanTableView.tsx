@@ -613,7 +613,7 @@ export default function SansPlanTableView() {
   const addStandaloneTravail = useAppStore((s) => s.addStandaloneTravail)
   const deleteTravail        = useAppStore((s) => s.deleteTravail)
   const travaux              = useAppStore((s) =>
-    s.travaux.filter((t) => !t.planId && (!currentProjectId || s.plans.filter((p) => p.projectId === currentProjectId).every((p) => p.id !== t.planId)))
+    s.travaux.filter((t) => !t.planId && t.projectId === s.currentProjectId)
   )
   const systemes = project?.systemes ?? []
 

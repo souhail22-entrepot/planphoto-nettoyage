@@ -256,7 +256,7 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           projects:      s.projects.filter((p) => p.id !== id),
           plans:         s.plans.filter((p) => p.projectId !== id),
-          travaux:       s.travaux.filter((t) => !planIds.includes(t.planId)),
+          travaux:       s.travaux.filter((t) => t.planId ? !planIds.includes(t.planId) : t.projectId !== id),
           interventions: s.interventions.filter((i) => i.projectId !== id),
           annotations:   s.annotations.filter((a) => !planIds.includes(a.planId)),
           zones:         s.zones.filter((z) => !planIds.includes(z.planId)),
@@ -348,6 +348,7 @@ export const useAppStore = create<AppState>()(
           return {
             id: nanoid(), numero: idx + 1,
             planId:    planIdMap[pin.planId] ?? '',
+            projectId: id,
             systemeId: sys.id,
             inspectionPinId: pin.id,
             x: pin.x ?? 100, y: pin.y ?? 100,
@@ -533,7 +534,7 @@ export const useAppStore = create<AppState>()(
         const now = new Date().toISOString()
         set((s) => {
           const proj    = s.projects.find((p) => p.id === s.currentProjectId)
-          const temp    = { ...data, id, numero: 0, createdAt: now, updatedAt: now }
+          const temp    = { ...data, id, projectId: s.currentProjectId ?? undefined, numero: 0, createdAt: now, updatedAt: now }
           const updated = recomputeNumbers([...s.travaux, temp], proj?.systemes ?? [])
           return {
             travaux:          updated,
@@ -1207,6 +1208,23 @@ export const useAppStore = create<AppState>()(
             createdAt: i.createdAt, updatedAt: i.updatedAt,
           }
         }),
+        // Migration : remplir projectId manquant sur les anciens travaux
+        travaux: (() => {
+          const allPlans: any[] = persisted.plans ?? []
+          const allProjects: any[] = persisted.projects ?? []
+          const planProjectMap: Record<string, string> = {}
+          allPlans.forEach((p: any) => { if (p.id && p.projectId) planProjectMap[p.id] = p.projectId })
+          // Index systemeId → projectId pour les travaux sans plan
+          const systemeProjectMap: Record<string, string> = {}
+          allProjects.forEach((p: any) => {
+            (p.systemes ?? []).forEach((s: any) => { if (s.id) systemeProjectMap[s.id] = p.id })
+          })
+          return (persisted.travaux ?? []).map((t: any) => {
+            if (t.projectId) return t
+            const pid = t.planId ? planProjectMap[t.planId] : systemeProjectMap[t.systemeId]
+            return pid ? { ...t, projectId: pid } : t
+          })
+        })(),
         zones: persisted.zones ?? [],
         // Restaurer le cache rapport depuis le projet courant
         ...((() => {

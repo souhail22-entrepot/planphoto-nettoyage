@@ -294,6 +294,7 @@ export interface TravailNettoyage {
   id: string
   numero: number
   planId: string
+  projectId?: string            // référence directe au projet (indispensable pour travaux sans plan)
   systemeId: string             // référence à Systeme (jamais de nom en dur ici)
 
   // Lien optionnel vers l'épingle d'inspection source

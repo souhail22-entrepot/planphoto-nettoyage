@@ -18,7 +18,9 @@ export default function TravauxView({ onNavigatePlan }: Props) {
   const selectedTravailId     = useAppStore((s) => s.selectedTravailId)
   const allTravaux            = useAppStore((s) => {
     const planIds = new Set(s.plans.filter((p) => p.projectId === s.currentProjectId).map((p) => p.id))
-    return s.travaux.filter((t) => !t.planId || planIds.has(t.planId))
+    return s.travaux.filter((t) =>
+      t.planId ? planIds.has(t.planId) : t.projectId === s.currentProjectId
+    )
   })
   const setCurrentPlan        = useAppStore((s) => s.setCurrentPlan)
   const setSelectedTravail    = useAppStore((s) => s.setSelectedTravail)
