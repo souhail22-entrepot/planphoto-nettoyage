@@ -1,4 +1,4 @@
-import { Plus, Upload, FileText, FolderOpen, Calendar, MapPin } from 'lucide-react'
+import { Plus, Upload, FolderOpen, Calendar, MapPin } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import toast from 'react-hot-toast'
@@ -98,7 +98,6 @@ export default function WelcomeScreen({ onProjectCreated }: Props) {
   })
 
   const inspImportRef = useRef<HTMLInputElement>(null)
-  const projImportRef = useRef<HTMLInputElement>(null)
 
   function set(k: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })
@@ -262,8 +261,6 @@ export default function WelcomeScreen({ onProjectCreated }: Props) {
       {/* Inputs cachés */}
       <input ref={inspImportRef} type="file" accept=".json" className="hidden"
         onChange={(e) => { handleInspectionImport(e.target.files); e.target.value = '' }} />
-      <input ref={projImportRef} type="file" accept=".json" className="hidden"
-        onChange={(e) => { handleProjectImport(e.target.files); e.target.value = '' }} />
 
       {/* Background : gradient + grid */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-950/50 via-slate-950 to-slate-950 pointer-events-none" />
@@ -322,11 +319,6 @@ export default function WelcomeScreen({ onProjectCreated }: Props) {
                 {loadingFolder ? 'Chargement…' : 'Ouvrir un dossier de projet'}
               </button>
 
-              <button onClick={() => projImportRef.current?.click()}
-                className="flex items-center justify-center gap-3 px-5 py-3 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 text-slate-600 hover:text-slate-400 rounded-xl text-xs transition-all">
-                <FileText className="w-3.5 h-3.5" />
-                JSON uniquement (sans photos)
-              </button>
             </div>
 
             {/* Colonne droite — projets récents */}
