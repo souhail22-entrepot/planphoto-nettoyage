@@ -502,6 +502,15 @@ export const TYPE_POINT_DEBIT: Record<TypePointDebit, { label: string; color: st
 
 export type UniteDebit = 'CFM' | 'L/s'
 
+export type MethodeMesure = 'anemometre' | 'cone' | 'pitot' | 'debitmetre'
+
+export const METHODE_MESURE_LABELS: Record<MethodeMesure, string> = {
+  anemometre: 'Anémomètre',
+  cone:       'Cône / hotte',
+  pitot:      'Tube de Pitot',
+  debitmetre: 'Débitmètre',
+}
+
 export interface PointDebit {
   id: string
   planDebitId: string
@@ -509,10 +518,15 @@ export interface PointDebit {
   identifiant: string
   type: TypePointDebit
   local: string
+  systemeId?: string
   x: number          // % relatif au plan (0-100)
   y: number          // % relatif au plan (0-100)
   debitAvant?: number
   debitApres?: number
+  dateAvant?: string       // ISO date de la mesure avant
+  dateApres?: string       // ISO date de la mesure après
+  conditions?: string      // ex: filtre neuf, vitesse ventilateur 100%
+  methode?: MethodeMesure  // instrument utilisé
   unite: UniteDebit
   observations?: string
   createdAt: string

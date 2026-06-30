@@ -17,7 +17,7 @@ import { getProjectTravailPhotos } from '@/services/travailPhotoStorage'
 import { getProjectInterventionPhotos } from '@/services/interventionPhotoStorage'
 import { getAllPlanImages } from '@/services/planImageStorage'
 
-type View = 'plan' | 'dashboard' | 'systemes' | 'travaux' | 'portes' | 'photos' | 'report' | 'intervention' | 'matching' | 'templates'
+type View = 'plan' | 'dashboard' | 'systemes' | 'travaux' | 'portes' | 'photos' | 'report' | 'intervention' | 'matching' | 'templates' | 'debit'
 
 interface Props {
   currentView:    View
