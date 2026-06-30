@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import toast from 'react-hot-toast'
 import type { InspectionExport } from '@/types'
+import { readProjectJsonFromFolder, restorePhotosFromFolder, setLoadedProjectDirHandle } from '@/services/fileSystemSave'
 
 interface Props { onProjectCreated: () => void }
 type Mode = 'home' | 'new'
@@ -83,9 +84,13 @@ export default function WelcomeScreen({ onProjectCreated }: Props) {
   const setCurrentProject     = useAppStore((s) => s.setCurrentProject)
   const importFromInspection  = useAppStore((s) => s.importFromInspection)
   const importProjectJSON     = useAppStore((s) => s.importProjectJSON)
+  const restorePlanImages         = useAppStore((s) => s.restorePlanImages)
+  const restoreTravailPhotos      = useAppStore((s) => s.restoreTravailPhotos)
+  const restoreInterventionPhotos = useAppStore((s) => s.restoreInterventionPhotos)
   const projects              = useAppStore((s) => [...s.projects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)))
 
-  const [mode, setMode] = useState<Mode>('home')
+  const [mode, setMode]           = useState<Mode>('home')
+  const [loadingFolder, setLoadingFolder] = useState(false)
   const [form, setForm] = useState({
     name: '', client: '', adresse: '', ville: '', codePostal: '',
     technicien: '', technicienTitre: '', verificateur: '', dateDebut: '',
@@ -135,11 +140,43 @@ export default function WelcomeScreen({ onProjectCreated }: Props) {
         const data = JSON.parse(e.target?.result as string)
         if (!data?.project) { toast.error('Fichier projet invalide'); return }
         importProjectJSON(data)
-        toast.success('Projet importé')
+        toast.success('Projet importé (sans photos — utilisez "Ouvrir un dossier" pour les photos)')
         onProjectCreated()
       } catch { toast.error('Erreur de lecture du fichier') }
     }
     reader.readAsText(file)
+  }
+
+  async function handleLoadFromFolder() {
+    if (!('showDirectoryPicker' in window)) {
+      toast.error('Non supporté dans ce navigateur (utilisez Chrome ou Edge)')
+      return
+    }
+    setLoadingFolder(true)
+    try {
+      const dir = await (window as any).showDirectoryPicker({ mode: 'read' })
+      const data = await readProjectJsonFromFolder(dir)
+      if (!data || !(data as any).project) {
+        toast.error('Aucun project.json valide dans ce dossier')
+        return
+      }
+      const projectId = (data as any).project?.id
+      setLoadedProjectDirHandle(projectId, dir)
+      importProjectJSON(data)
+      toast.loading('Restauration des photos…', { id: 'restore-photos' })
+      const counts = await restorePhotosFromFolder(dir, projectId)
+      await Promise.all([restoreTravailPhotos(), restoreInterventionPhotos(), restorePlanImages()])
+      toast.success(
+        `Projet chargé — ${counts.plan} plans · ${counts.travail} photos travaux · ${counts.intervention} interventions`,
+        { id: 'restore-photos' }
+      )
+      setCurrentProject(projectId)
+      onProjectCreated()
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') toast.error('Erreur lors du chargement du dossier')
+    } finally {
+      setLoadingFolder(false)
+    }
   }
 
   // ── Formulaire nouveau projet ──────────────────────────────────────────────
@@ -279,10 +316,16 @@ export default function WelcomeScreen({ onProjectCreated }: Props) {
                 Importer depuis inspection
               </button>
 
+              <button onClick={handleLoadFromFolder} disabled={loadingFolder}
+                className="flex items-center justify-center gap-3 px-5 py-3.5 bg-slate-800/70 hover:bg-slate-800 border border-slate-700 hover:border-sky-600/50 text-slate-200 rounded-xl font-semibold text-sm backdrop-blur transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-wait">
+                <FolderOpen className="w-4 h-4 text-sky-400" />
+                {loadingFolder ? 'Chargement…' : 'Ouvrir un dossier de projet'}
+              </button>
+
               <button onClick={() => projImportRef.current?.click()}
-                className="flex items-center justify-center gap-3 px-5 py-3.5 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 text-slate-500 hover:text-slate-300 rounded-xl text-sm transition-all">
-                <FileText className="w-4 h-4" />
-                Ouvrir un projet (.json)
+                className="flex items-center justify-center gap-3 px-5 py-3 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 text-slate-600 hover:text-slate-400 rounded-xl text-xs transition-all">
+                <FileText className="w-3.5 h-3.5" />
+                JSON uniquement (sans photos)
               </button>
             </div>
 
