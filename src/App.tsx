@@ -23,6 +23,7 @@ declare global {
     setAppView: (v: View) => void
     __currentTool: string
     __captureCurrentPlan: () => { planId: string; dataUrl: string } | null
+    __cleanupTravaux: () => void
   }
 }
 
@@ -37,6 +38,22 @@ export default function App() {
 
   // Expose window.setAppView pour les sous-composants
   useEffect(() => { window.setAppView = setCurrentView }, [])
+
+  // Outil de nettoyage des travaux orphelins (accessible depuis la console)
+  useEffect(() => {
+    window.__cleanupTravaux = () => {
+      const { travaux, plans, projects } = useAppStore.getState()
+      const planIdSet = new Set(plans.map((p) => p.id))
+      const projectIdSet = new Set(projects.map((p) => p.id))
+      const avant = travaux.length
+      const cleaned = travaux.filter((t) => {
+        if (t.planId) return planIdSet.has(t.planId)           // avec plan → doit exister
+        return !!t.projectId && projectIdSet.has(t.projectId)  // sans plan → projectId valide
+      })
+      useAppStore.setState({ travaux: cleaned })
+      console.log(`✅ Nettoyage terminé : ${avant - cleaned.length} travaux orphelins supprimés. Reste : ${cleaned.length}`)
+    }
+  }, [])
 
   // Mode sombre
   useEffect(() => {
