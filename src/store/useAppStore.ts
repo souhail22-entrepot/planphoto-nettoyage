@@ -37,16 +37,30 @@ function orderGroup(group: TravailNettoyage[], sysOrder: string[]): TravailNetto
 
 function recomputeNumbers(travaux: TravailNettoyage[], systemes: Systeme[]): TravailNettoyage[] {
   const sysOrder   = systemes.map((s) => s.id)
-  // 1. Travaux sur plan (épingles) en premier
   const avecPlan   = travaux.filter((t) => !!t.planId)
-  // 2. Travaux sans plan en dernier
   const sansPlan   = travaux.filter((t) => !t.planId)
-
   const ordered = [
     ...orderGroup(avecPlan,  sysOrder),
     ...orderGroup(sansPlan,  sysOrder),
   ]
   return travaux.map((t) => ({ ...t, numero: ordered.findIndex((x) => x.id === t.id) + 1 }))
+}
+
+// Renumérote uniquement les travaux du projet donné, laisse les autres projets intacts
+function recomputeNumbersForProject(
+  allTravaux: TravailNettoyage[],
+  projectId: string | null,
+  projectPlanIds: string[],
+  systemes: Systeme[]
+): TravailNettoyage[] {
+  if (!projectId) return allTravaux
+  const planIdSet = new Set(projectPlanIds)
+  const projTravaux = allTravaux.filter((t) =>
+    t.planId ? planIdSet.has(t.planId) : t.projectId === projectId
+  )
+  const renumbered = recomputeNumbers(projTravaux, systemes)
+  const numMap = new Map(renumbered.map((t) => [t.id, t.numero]))
+  return allTravaux.map((t) => numMap.has(t.id) ? { ...t, numero: numMap.get(t.id)! } : t)
 }
 
 function makeReportSection(type: ReportSectionType): ReportSection {
@@ -481,10 +495,10 @@ export const useAppStore = create<AppState>()(
               updatedAt: new Date().toISOString(),
             }
           )
-          const newTravaux = 'nom' in data ? recomputeNumbers(
-            s.travaux,
-            updated.find((p) => p.id === projectId)?.systemes ?? []
-          ) : s.travaux
+          const projPlanIds = s.plans.filter((p) => p.projectId === projectId).map((p) => p.id)
+          const newTravaux  = 'nom' in data
+            ? recomputeNumbersForProject(s.travaux, projectId, projPlanIds, updated.find((p) => p.id === projectId)?.systemes ?? [])
+            : s.travaux
           return { projects: updated, travaux: newTravaux }
         })
       },
@@ -513,16 +527,22 @@ export const useAppStore = create<AppState>()(
 
       deletePlan: async (id) => {
         await deletePlanImage(id)
-        set((s) => ({
-          plans:       s.plans.filter((p) => p.id !== id),
-          travaux:     recomputeNumbers(
-            s.travaux.filter((t) => t.planId !== id),
-            s.projects.find((p) => p.id === s.currentProjectId)?.systemes ?? []
-          ),
-          annotations: s.annotations.filter((a) => a.planId !== id),
-          zones:       s.zones.filter((z) => z.planId !== id),
-          currentPlanId: s.currentPlanId === id ? null : s.currentPlanId,
-        }))
+        set((s) => {
+          const proj        = s.projects.find((p) => p.id === s.currentProjectId)
+          const projPlanIds = s.plans.filter((p) => p.projectId === s.currentProjectId && p.id !== id).map((p) => p.id)
+          return {
+            plans:       s.plans.filter((p) => p.id !== id),
+            travaux:     recomputeNumbersForProject(
+              s.travaux.filter((t) => t.planId !== id),
+              s.currentProjectId,
+              projPlanIds,
+              proj?.systemes ?? []
+            ),
+            annotations: s.annotations.filter((a) => a.planId !== id),
+            zones:       s.zones.filter((z) => z.planId !== id),
+            currentPlanId: s.currentPlanId === id ? null : s.currentPlanId,
+          }
+        })
       },
 
       setCurrentPlan: (id) => set({ currentPlanId: id, selectedTravailId: null, selectedAnnotationId: null }),
@@ -533,9 +553,10 @@ export const useAppStore = create<AppState>()(
         const id  = nanoid()
         const now = new Date().toISOString()
         set((s) => {
-          const proj    = s.projects.find((p) => p.id === s.currentProjectId)
-          const temp    = { ...data, id, projectId: s.currentProjectId ?? undefined, numero: 0, createdAt: now, updatedAt: now }
-          const updated = recomputeNumbers([...s.travaux, temp], proj?.systemes ?? [])
+          const proj        = s.projects.find((p) => p.id === s.currentProjectId)
+          const projPlanIds = s.plans.filter((p) => p.projectId === s.currentProjectId).map((p) => p.id)
+          const temp        = { ...data, id, projectId: s.currentProjectId ?? undefined, numero: 0, createdAt: now, updatedAt: now }
+          const updated     = recomputeNumbersForProject([...s.travaux, temp], s.currentProjectId, projPlanIds, proj?.systemes ?? [])
           return {
             travaux:          updated,
             selectedTravailId: id,
@@ -565,9 +586,12 @@ export const useAppStore = create<AppState>()(
 
       updateTravail: (id, data) =>
         set((s) => {
-          const proj    = s.projects.find((p) => p.id === s.currentProjectId)
-          const updated = s.travaux.map((t) => t.id === id ? { ...t, ...data, updatedAt: new Date().toISOString() } : t)
-          const travaux = 'systemeId' in data ? recomputeNumbers(updated, proj?.systemes ?? []) : updated
+          const proj        = s.projects.find((p) => p.id === s.currentProjectId)
+          const projPlanIds = s.plans.filter((p) => p.projectId === s.currentProjectId).map((p) => p.id)
+          const updated     = s.travaux.map((t) => t.id === id ? { ...t, ...data, updatedAt: new Date().toISOString() } : t)
+          const travaux     = 'systemeId' in data
+            ? recomputeNumbersForProject(updated, s.currentProjectId, projPlanIds, proj?.systemes ?? [])
+            : updated
           return {
             travaux,
             history: [...s.history, logEntry('update', 'travail', id, `Travail #${s.travaux.find((t) => t.id === id)?.numero} modifié`, proj?.technicien ?? '')],
@@ -576,11 +600,17 @@ export const useAppStore = create<AppState>()(
 
       deleteTravail: (id) => {
         const s = get()
-        const proj    = s.projects.find((p) => p.id === s.currentProjectId)
-        const travail = s.travaux.find((t) => t.id === id)
+        const proj        = s.projects.find((p) => p.id === s.currentProjectId)
+        const projPlanIds = s.plans.filter((p) => p.projectId === s.currentProjectId).map((p) => p.id)
+        const travail     = s.travaux.find((t) => t.id === id)
 
         // Travaux restants après suppression
-        const remainingTravaux = recomputeNumbers(s.travaux.filter((t) => t.id !== id), proj?.systemes ?? [])
+        const remainingTravaux = recomputeNumbersForProject(
+          s.travaux.filter((t) => t.id !== id),
+          s.currentProjectId,
+          projPlanIds,
+          proj?.systemes ?? []
+        )
 
         // IDs de portes liées à ce travail
         const doorIdsToCheck = new Set(travail?.portesUtilisees ?? [])
