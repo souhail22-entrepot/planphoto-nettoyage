@@ -1262,6 +1262,7 @@ export const useAppStore = create<AppState>()(
       }),
       partialize: (state) => ({
         projects:         state.projects,
+        companyLogo:      state.companyLogo,
         // Plans sans URLs d'images (stockées dans IndexedDB) mais avec portes
         plans: state.plans.map((p) => ({
           ...p,
