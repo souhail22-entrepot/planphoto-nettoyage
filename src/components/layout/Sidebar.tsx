@@ -9,7 +9,7 @@ import toast from 'react-hot-toast'
 import { useAppStore } from '@/store/useAppStore'
 import { readProjectJsonFromFolder, restorePhotosFromFolder, setLoadedProjectDirHandle } from '@/services/fileSystemSave'
 
-type View = 'plan' | 'dashboard' | 'systemes' | 'travaux' | 'portes' | 'photos' | 'report' | 'intervention' | 'matching' | 'templates'
+type View = 'plan' | 'dashboard' | 'systemes' | 'travaux' | 'portes' | 'photos' | 'report' | 'intervention' | 'matching' | 'templates' | 'debit'
 
 interface Props {
   currentView:  View
@@ -46,6 +46,7 @@ export default function Sidebar({ currentView, onViewChange }: Props) {
     { id: 'intervention', icon: ClipboardList,  label: 'Rapport intervention' },
     { id: 'matching',    icon: Layers,          label: 'Appariement photo interv.' },
     { id: 'templates',   icon: BookOpen,        label: 'Bibliothèque modèles' },
+    { id: 'debit',       icon: Wind,            label: 'Mesures de débit' },
     { id: 'report',      icon: FileDown,        label: 'Rapport final' },
   ]
 

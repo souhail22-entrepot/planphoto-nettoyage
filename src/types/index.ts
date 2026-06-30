@@ -490,6 +490,45 @@ export type ReportSection =
   | ObservationsReportSection
   | SubtitleReportSection
 
+// ── Mesures de débit d'air ────────────────────────────────────────────────────
+
+export type TypePointDebit = 'diffuseur' | 'reprise' | 'extraction'
+
+export const TYPE_POINT_DEBIT: Record<TypePointDebit, { label: string; color: string; abbr: string }> = {
+  diffuseur:  { label: 'Diffuseur (soufflage)', color: '#2563EB', abbr: 'D' },
+  reprise:    { label: 'Grille de reprise',     color: '#059669', abbr: 'R' },
+  extraction: { label: "Grille d'extraction",   color: '#DC2626', abbr: 'G' },
+}
+
+export type UniteDebit = 'CFM' | 'L/s'
+
+export interface PointDebit {
+  id: string
+  planDebitId: string
+  projectId: string
+  identifiant: string
+  type: TypePointDebit
+  local: string
+  x: number          // % relatif au plan (0-100)
+  y: number          // % relatif au plan (0-100)
+  debitAvant?: number
+  debitApres?: number
+  unite: UniteDebit
+  observations?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PlanDebit {
+  id: string
+  projectId: string
+  name: string
+  width: number
+  height: number
+  url?: string       // non persisté dans localStorage, rechargé depuis IndexedDB
+  createdAt: string
+}
+
 // ── Import depuis l'application d'inspection ──────────────────────────────────
 
 export interface InspectionExport {

@@ -15,8 +15,9 @@ import AccessDoorsView from '@/components/views/AccessDoorsView'
 import InterventionReportView from '@/components/views/InterventionReportView'
 import PhotoMatchingView from '@/components/views/PhotoMatchingView'
 import TemplateLibraryView from '@/components/views/TemplateLibraryView'
+import MesuresDebitView from '@/components/views/MesuresDebitView'
 
-type View = 'plan' | 'dashboard' | 'systemes' | 'travaux' | 'portes' | 'photos' | 'report' | 'intervention' | 'matching' | 'templates'
+type View = 'plan' | 'dashboard' | 'systemes' | 'travaux' | 'portes' | 'photos' | 'report' | 'intervention' | 'matching' | 'templates' | 'debit'
 
 declare global {
   interface Window {
@@ -152,6 +153,11 @@ export default function App() {
           {currentView === 'templates' && (
             <div className="flex-1 overflow-hidden flex flex-col">
               <TemplateLibraryView />
+            </div>
+          )}
+          {currentView === 'debit' && (
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <MesuresDebitView />
             </div>
           )}
         </main>

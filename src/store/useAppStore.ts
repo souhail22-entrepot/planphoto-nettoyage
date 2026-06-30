@@ -6,6 +6,7 @@ import type {
   Photo, Signature, PlanAccessDoor, Annotation, HistoryEntry,
   ReportSection, ReportSectionType, EquipmentItem, ObservationItem,
   InspectionExport, AnomalieNettoyage, ZoneConduit,
+  PlanDebit, PointDebit,
 } from '@/types'
 import type { Intervention, PhotoIntervention } from '@/types/interventions'
 import { savePlanImage, deletePlanImage, getAllPlanImages } from '@/services/planImageStorage'
@@ -92,6 +93,8 @@ interface AppState {
   annotations:   Annotation[]
   zones:         ZoneConduit[]
   history:       HistoryEntry[]
+  plansDebit:    PlanDebit[]
+  pointsDebit:   PointDebit[]
 
   // Navigation
   currentProjectId:  string | null
@@ -204,6 +207,14 @@ interface AppState {
   addObservationPhoto:   (sectionId: string, itemId: string, url: string) => void
   removeObservationPhoto:(sectionId: string, itemId: string, idx: number) => void
 
+  // ── Actions Mesures de débit d'air ───────────────────────────────────────
+  addPlanDebit:    (data: Omit<PlanDebit, 'id' | 'createdAt'> & { imageData: string }) => Promise<string>
+  updatePlanDebit: (id: string, data: Partial<Omit<PlanDebit, 'id' | 'createdAt'>>) => void
+  deletePlanDebit: (id: string) => Promise<void>
+  addPointDebit:    (data: Omit<PointDebit, 'id' | 'createdAt' | 'updatedAt'>) => string
+  updatePointDebit: (id: string, data: Partial<PointDebit>) => void
+  deletePointDebit: (id: string) => void
+
   // ── Actions Interventions ─────────────────────────────────────────────────
   addIntervention:    (data: Omit<Intervention, 'id' | 'createdAt' | 'updatedAt'>) => string
   updateIntervention: (id: string, data: Partial<Intervention>) => void
@@ -227,6 +238,8 @@ export const useAppStore = create<AppState>()(
       annotations:   [],
       zones:         [],
       history:       [],
+      plansDebit:    [],
+      pointsDebit:   [],
       currentProjectId:     null,
       currentPlanId:        null,
       selectedTravailId:    null,
@@ -266,6 +279,8 @@ export const useAppStore = create<AppState>()(
         const state = get()
         const planIds = state.plans.filter((p) => p.projectId === id).map((p) => p.id)
         for (const pid of planIds) await deletePlanImage(pid)
+        const debitPlanIds = state.plansDebit.filter((p) => p.projectId === id).map((p) => p.id)
+        for (const pid of debitPlanIds) await deletePlanImage(pid)
         await deleteProjectInterventionPhotos(id)
         set((s) => ({
           projects:      s.projects.filter((p) => p.id !== id),
@@ -274,6 +289,8 @@ export const useAppStore = create<AppState>()(
           interventions: s.interventions.filter((i) => i.projectId !== id),
           annotations:   s.annotations.filter((a) => !planIds.includes(a.planId)),
           zones:         s.zones.filter((z) => !planIds.includes(z.planId)),
+          plansDebit:    s.plansDebit.filter((p) => p.projectId !== id),
+          pointsDebit:   s.pointsDebit.filter((p) => p.projectId !== id),
           currentProjectId: s.currentProjectId === id ? null : s.currentProjectId,
           currentPlanId:    planIds.includes(s.currentPlanId ?? '') ? null : s.currentPlanId,
           reportSections:   s.currentProjectId === id ? [] : s.reportSections,
@@ -446,6 +463,8 @@ export const useAppStore = create<AppState>()(
             photosChgtHotteApres: (i.photosChgtHotteApres ?? []).map((ph) => ({ ...ph, url: '' })),
           })),
           annotations:  s.annotations.filter((a) => planIds.includes(a.planId)),
+          plansDebit:   s.plansDebit.filter((p) => p.projectId === pid).map((p) => ({ ...p, url: '' })),
+          pointsDebit:  s.pointsDebit.filter((p) => p.projectId === pid),
           history:      s.history,
           exportedAt:   new Date().toISOString(),
         }
@@ -469,6 +488,14 @@ export const useAppStore = create<AppState>()(
             ...(data.travaux ?? []).map((t: any) => ({ ...t, projectId: proj.id })),
           ],
           annotations: [...s.annotations.filter((a) => !planIds.includes(a.planId)), ...(data.annotations ?? [])],
+          plansDebit: [
+            ...s.plansDebit.filter((p) => p.projectId !== proj.id),
+            ...(data.plansDebit ?? []).map((p: any) => ({ ...p, url: '' })),
+          ],
+          pointsDebit: [
+            ...s.pointsDebit.filter((p) => p.projectId !== proj.id),
+            ...(data.pointsDebit ?? []),
+          ],
           history:     data.history ?? s.history,
           currentProjectId:  proj.id,
           currentPlanId:     null,
@@ -1073,6 +1100,45 @@ export const useAppStore = create<AppState>()(
           return { reportSections: updated, projects: s.projects.map((p) => p.id === s.currentProjectId ? { ...p, reportSections: updated } : p) }
         }),
 
+      // ── Mesures de débit d'air ────────────────────────────────────────────────
+
+      addPlanDebit: async (data) => {
+        const id  = nanoid()
+        const now = new Date().toISOString()
+        const { imageData, ...rest } = data
+        await savePlanImage(id, imageData)
+        set((s) => ({ plansDebit: [...s.plansDebit, { ...rest, id, createdAt: now, url: imageData }] }))
+        return id
+      },
+
+      updatePlanDebit: (id, data) =>
+        set((s) => ({ plansDebit: s.plansDebit.map((p) => p.id === id ? { ...p, ...data } : p) })),
+
+      deletePlanDebit: async (id) => {
+        await deletePlanImage(id)
+        set((s) => ({
+          plansDebit:  s.plansDebit.filter((p) => p.id !== id),
+          pointsDebit: s.pointsDebit.filter((p) => p.planDebitId !== id),
+        }))
+      },
+
+      addPointDebit: (data) => {
+        const id  = nanoid()
+        const now = new Date().toISOString()
+        set((s) => ({ pointsDebit: [...s.pointsDebit, { ...data, id, createdAt: now, updatedAt: now }] }))
+        return id
+      },
+
+      updatePointDebit: (id, data) => {
+        const now = new Date().toISOString()
+        set((s) => ({
+          pointsDebit: s.pointsDebit.map((p) => p.id === id ? { ...p, ...data, updatedAt: now } : p),
+        }))
+      },
+
+      deletePointDebit: (id) =>
+        set((s) => ({ pointsDebit: s.pointsDebit.filter((p) => p.id !== id) })),
+
       // ── Interventions ─────────────────────────────────────────────────────────
 
       addIntervention: (data) => {
@@ -1114,7 +1180,10 @@ export const useAppStore = create<AppState>()(
       restorePlanImages: async () => {
         const images = await getAllPlanImages()
         if (!Object.keys(images).length) return
-        set((s) => ({ plans: s.plans.map((p) => p.url ? p : { ...p, url: images[p.id] || '' }) }))
+        set((s) => ({
+          plans:      s.plans.map((p) => p.url ? p : { ...p, url: images[p.id] || '' }),
+          plansDebit: s.plansDebit.map((p) => p.url ? p : { ...p, url: images[p.id] || '' }),
+        }))
       },
 
       restoreTravailPhotos: async () => {
@@ -1262,7 +1331,9 @@ export const useAppStore = create<AppState>()(
             return [{ ...t, projectId: pid }]
           })
         })(),
-        zones: persisted.zones ?? [],
+        zones:       persisted.zones       ?? [],
+        plansDebit:  persisted.plansDebit  ?? [],
+        pointsDebit: persisted.pointsDebit ?? [],
         // Restaurer le cache rapport depuis le projet courant
         ...((() => {
           const projId = persisted.currentProjectId
@@ -1321,8 +1392,10 @@ export const useAppStore = create<AppState>()(
           photosApres:   t.photosApres.map((ph)    => ({ ...ph, url: '' })),
           anomalies:     t.anomalies.map((a)        => ({ ...a, photos: a.photos.map((ph) => ({ ...ph, url: '' })) })),
         })),
-        annotations: state.annotations,
-        zones:       state.zones,
+        annotations:  state.annotations,
+        zones:        state.zones,
+        plansDebit:   state.plansDebit.map((p) => ({ ...p, url: undefined })),
+        pointsDebit:  state.pointsDebit,
         // Interventions sans URLs photos (stockées dans IndexedDB)
         interventions: state.interventions.map((i) => ({
           ...i,
