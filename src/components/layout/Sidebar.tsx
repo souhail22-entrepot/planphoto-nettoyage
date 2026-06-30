@@ -39,7 +39,6 @@ export default function Sidebar({ currentView, onViewChange }: Props) {
 
   const navItems: { id: View; icon: any; label: string; badge?: number }[] = [
     { id: 'dashboard',   icon: LayoutDashboard, label: 'Tableau de bord' },
-    { id: 'plan',        icon: Map,             label: 'Plans & travaux' },
     { id: 'systemes',    icon: Settings,        label: 'Systèmes CVAC' },
     { id: 'travaux',     icon: List,            label: 'Travaux',             badge: total },
     { id: 'portes',      icon: DoorOpen,        label: 'Portes accès' },
@@ -212,11 +211,18 @@ export default function Sidebar({ currentView, onViewChange }: Props) {
 
           {/* Plans */}
           <div className="border-t border-gray-800 py-1 flex-1 overflow-y-auto">
-            <button onClick={() => setPlansOpen(!plansOpen)}
-              className="w-full flex items-center justify-between px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-gray-600 hover:text-gray-400 transition-colors">
-              <span>Plans ({plans.length})</span>
-              {plansOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-            </button>
+            <div className="flex items-center px-4 py-2">
+              <button onClick={() => setPlansOpen(!plansOpen)}
+                className="flex items-center gap-1 flex-1 text-[10px] font-semibold uppercase tracking-widest text-gray-600 hover:text-gray-400 transition-colors">
+                <span>Plans ({plans.length})</span>
+                {plansOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              </button>
+              <button onClick={() => { setCurrentPlan(null); onViewChange('plan') }}
+                title="Ajouter un plan"
+                className="p-1 rounded-md text-gray-600 hover:text-blue-400 hover:bg-gray-800 transition-colors">
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
             {plansOpen && plans.map((plan) => (
               <div key={plan.id}
                 onClick={() => { if (editingId !== plan.id) { setCurrentPlan(plan.id); onViewChange('plan') } }}
@@ -302,14 +308,6 @@ export default function Sidebar({ currentView, onViewChange }: Props) {
             ))}
           </div>
 
-          {/* Ajouter plan */}
-          <div className="border-t border-gray-800 p-2">
-            <button onClick={() => { setCurrentPlan(null); onViewChange('plan') }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-600 hover:text-blue-400 hover:bg-gray-800 rounded-lg transition-colors">
-              <Plus className="w-3.5 h-3.5" />
-              Ajouter un plan
-            </button>
-          </div>
         </>
       )}
 
