@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Map, List, Camera, FileDown, ClipboardList,
   Plus, ChevronDown, ChevronRight, Trash2, FolderOpen,
   DoorOpen, Settings, RotateCw, ChevronLeft, Pencil, Layers, BookOpen,
-  Home, X, FolderDown,
+  Home, X, FolderDown, Wind,
 } from 'lucide-react'
 import React, { useState, useRef } from 'react'
 import toast from 'react-hot-toast'

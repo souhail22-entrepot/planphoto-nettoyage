@@ -1115,11 +1115,12 @@ export const useAppStore = create<AppState>()(
         set((s) => ({ plansDebit: s.plansDebit.map((p) => p.id === id ? { ...p, ...data } : p) })),
 
       deletePlanDebit: async (id) => {
-        await deletePlanImage(id)
+        // Mise à jour synchrone d'abord → re-render immédiat
         set((s) => ({
           plansDebit:  s.plansDebit.filter((p) => p.id !== id),
           pointsDebit: s.pointsDebit.filter((p) => p.planDebitId !== id),
         }))
+        deletePlanImage(id).catch(() => {})
       },
 
       addPointDebit: (data) => {

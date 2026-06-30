@@ -1,8 +1,9 @@
-import { useRef, useState, useCallback } from 'react'
-import { Plus, Upload, Trash2, Wind, X, Check, Move } from 'lucide-react'
+import { useRef, useState, useCallback, useEffect } from 'react'
+import { Plus, Upload, Trash2, Wind, X, Check, Move, FileDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAppStore } from '@/store/useAppStore'
 import { TYPE_POINT_DEBIT, type TypePointDebit, type UniteDebit, type PointDebit } from '@/types'
+import { generateDebitReport } from '@/services/debitPdfGenerator'
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 
@@ -156,6 +157,8 @@ export default function MesuresDebitView() {
   const [isAddMode, setIsAddMode]           = useState(false)
   const [unite, setUnite]                   = useState<UniteDebit>('CFM')
   const [uploading, setUploading]           = useState(false)
+  const [exporting, setExporting]           = useState(false)
+  const project = useAppStore((s) => s.projects.find((p) => p.id === s.currentProjectId))
 
   const fileInputRef  = useRef<HTMLInputElement>(null)
   const planContainerRef = useRef<HTMLDivElement>(null)
@@ -166,10 +169,12 @@ export default function MesuresDebitView() {
   const currentPlan = plansDebit.find((p) => p.id === selectedPlanId) ?? plansDebit[0] ?? null
   const planPoints  = pointsDebit.filter((p) => p.planDebitId === currentPlan?.id)
 
-  // Select first plan if none selected after load
-  if (!selectedPlanId && plansDebit.length > 0 && plansDebit[0].id) {
-    setSelectedPlanId(plansDebit[0].id)
-  }
+  // Synchronise selectedPlanId si le plan sélectionné n'existe plus
+  useEffect(() => {
+    if (!plansDebit.find((p) => p.id === selectedPlanId)) {
+      setSelectedPlanId(plansDebit[0]?.id ?? null)
+    }
+  }, [plansDebit, selectedPlanId])
 
   // ── Auto-generate identifiant ─────────────────────────────────────────────
 
@@ -298,6 +303,27 @@ export default function MesuresDebitView() {
               </button>
             ))}
           </div>
+          {/* Télécharger PDF */}
+          {plansDebit.length > 0 && (
+            <button
+              disabled={exporting}
+              onClick={async () => {
+                if (!project) return
+                setExporting(true)
+                try {
+                  await generateDebitReport(project, plansDebit, pointsDebit, unite)
+                  toast.success('Rapport exporté')
+                } catch {
+                  toast.error('Erreur lors de l\'export')
+                } finally {
+                  setExporting(false)
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+              <FileDown className="w-3.5 h-3.5" />
+              {exporting ? 'Génération…' : 'Télécharger PDF'}
+            </button>
+          )}
           {/* Ajouter un plan */}
           <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
