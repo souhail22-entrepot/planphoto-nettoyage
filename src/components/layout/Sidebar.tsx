@@ -262,7 +262,7 @@ export default function Sidebar({ currentView, onViewChange }: Props) {
                   <div className="flex items-center gap-2">
                     <Map className="w-3.5 h-3.5 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs truncate">{plan.name}</p>
+                      <p className="text-xs break-words leading-snug line-clamp-2" title={plan.name}>{plan.name}</p>
                       <div className="flex items-center gap-2">
                         {plan.drawingNumber && (
                           <p className="text-[9px] text-blue-500 font-medium">#{plan.drawingNumber}</p>
