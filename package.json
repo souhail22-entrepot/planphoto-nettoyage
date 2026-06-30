@@ -1,0 +1,83 @@
+{
+  "name": "planphoto-nettoyage",
+  "version": "1.0.0",
+  "description": "Gestion professionnelle des travaux de nettoyage de conduits CVAC",
+  "author": "SDC inc",
+  "main": "electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "electron:build": "npm run build && electron-builder --win",
+    "electron:start": "electron ."
+  },
+  "build": {
+    "appId": "com.sdcinc.planphoto-nettoyage",
+    "productName": "PlanPhoto Nettoyage",
+    "copyright": "© 2024 SDC inc",
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "portable": {
+      "artifactName": "PlanPhoto-Nettoyage.exe"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    }
+  },
+  "dependencies": {
+    "@tiptap/extension-color": "^3.23.5",
+    "@tiptap/extension-highlight": "^3.23.5",
+    "@tiptap/extension-text-align": "^3.23.5",
+    "@tiptap/extension-text-style": "^3.23.5",
+    "@tiptap/extension-underline": "^3.23.5",
+    "@tiptap/pm": "^3.23.5",
+    "@tiptap/react": "^3.23.5",
+    "@tiptap/starter-kit": "^3.23.5",
+    "clsx": "^2.1.0",
+    "date-fns": "^3.0.6",
+    "framer-motion": "^10.18.0",
+    "idb": "^8.0.0",
+    "jspdf": "^2.5.1",
+    "konva": "^9.3.1",
+    "lucide-react": "^0.303.0",
+    "nanoid": "^5.0.4",
+    "pdfjs-dist": "^3.11.174",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-dropzone": "^14.2.3",
+    "react-hot-toast": "^2.4.1",
+    "react-konva": "^18.2.10",
+    "use-image": "^1.1.4",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
+    "eslint": "^8.56.0",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.11",
+    "vite-plugin-pwa": "^1.3.0"
+  }
+}

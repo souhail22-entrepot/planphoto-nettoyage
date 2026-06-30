@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Générateur d'icône — PlanPhoto Nettoyage</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+    h1 { font-size: 18px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
+    p  { font-size: 13px; color: #94a3b8; margin-bottom: 28px; }
+    #preview {
+      width: 128px; height: 128px;
+      border-radius: 24px;
+      margin: 0 auto 28px;
+      display: block;
+      box-shadow: 0 8px 32px rgba(3,104,161,0.4);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 28px;
+      background: #0ea5e9;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      text-decoration: none;
+    }
+    .btn:hover  { background: #38bdf8; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .steps {
+      margin-top: 32px;
+      text-align: left;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .steps h2 { font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 14px; }
+    .step { display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-start; }
+    .step:last-child { margin-bottom: 0; }
+    .num {
+      min-width: 22px; height: 22px; border-radius: 50%;
+      background: #0369a1; color: white;
+      font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-top: 1px;
+    }
+    .step p { color: #94a3b8; font-size: 13px; margin: 0; line-height: 1.5; }
+    .step code {
+      background: #1e293b; border: 1px solid #334155;
+      padding: 1px 6px; border-radius: 4px;
+      font-size: 12px; color: #7dd3fc; font-family: monospace;
+    }
+    #status { margin-top: 16px; font-size: 13px; color: #22c55e; min-height: 20px; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>Icône bureau — PlanPhoto Nettoyage</h1>
+  <p>Génère le fichier <strong>.ico</strong> à installer sur votre raccourci Windows</p>
+
+  <canvas id="preview" width="256" height="256"></canvas>
+
+  <button class="btn" onclick="downloadIco()">
+    ⬇ Télécharger PlanPhoto.ico
+  </button>
+  <div id="status"></div>
+
+  <div class="steps">
+    <h2>Après le téléchargement</h2>
+    <div class="step">
+      <div class="num">1</div>
+      <p>Déplacez <code>PlanPhoto.ico</code> dans un dossier permanent<br>(ex. <code>C:\Icones\</code>)</p>
+    </div>
+    <div class="step">
+      <div class="num">2</div>
+      <p>Clic droit sur le raccourci du bureau → <strong>Propriétés</strong></p>
+    </div>
+    <div class="step">
+      <div class="num">3</div>
+      <p>Onglet <strong>Raccourci</strong> → bouton <strong>Changer l'icône…</strong></p>
+    </div>
+    <div class="step">
+      <div class="num">4</div>
+      <p>Cliquez <strong>Parcourir</strong> → sélectionnez <code>PlanPhoto.ico</code> → OK</p>
+    </div>
+    <div class="step">
+      <div class="num">5</div>
+      <p>Cliquez <strong>Appliquer</strong> puis <strong>OK</strong> — l'icône change immédiatement</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Dessin du logo sur canvas ─────────────────────────────────────────────────
+function drawLogo(ctx, size) {
+  const s = size / 512;
+
+  // Gradient fond
+  const bg = ctx.createLinearGradient(0, 0, size, size);
+  bg.addColorStop(0,    '#0a1f4e');
+  bg.addColorStop(0.5,  '#0c3080');
+  bg.addColorStop(1,    '#0369a1');
+
+  // Fond arrondi
+  const r = 112 * s;
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(size - r, 0);
+  ctx.quadraticCurveTo(size, 0, size, r);
+  ctx.lineTo(size, size - r);
+  ctx.quadraticCurveTo(size, size, size - r, size);
+  ctx.lineTo(r, size);
+  ctx.quadraticCurveTo(0, size, 0, size - r);
+  ctx.lineTo(0, r);
+  ctx.quadraticCurveTo(0, 0, r, 0);
+  ctx.closePath();
+  ctx.fillStyle = bg;
+  ctx.fill();
+
+  // Reflet haut
+  const shine = ctx.createLinearGradient(0, 0, 0, size * 0.5);
+  shine.addColorStop(0, 'rgba(255,255,255,0.16)');
+  shine.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = shine;
+  ctx.fill();
+
+  // Conduit
+  const cx = 60*s, cy = 175*s, cw = 392*s, ch = 162*s, cr = 20*s;
+  ctx.beginPath();
+  roundRect(ctx, cx, cy, cw, ch, cr);
+  ctx.fillStyle = 'rgba(10,40,100,0.45)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(147,210,253,0.8)';
+  ctx.lineWidth = 8*s;
+  ctx.stroke();
+
+  // Embouts
+  ctx.fillStyle = 'rgba(147,210,253,0.35)';
+  ctx.strokeStyle = 'rgba(147,210,253,0.65)';
+  ctx.lineWidth = 3*s;
+  roundRect(ctx, 44*s, 197*s, 22*s, 118*s, 8*s); ctx.fill(); ctx.stroke();
+  roundRect(ctx, 446*s, 197*s, 22*s, 118*s, 8*s); ctx.fill(); ctx.stroke();
+
+  // Flèches (3)
+  const arrG = ctx.createLinearGradient(80*s, 0, 432*s, 0);
+  arrG.addColorStop(0, '#38bdf8');
+  arrG.addColorStop(1, '#93c5fd');
+
+  function arrow(x1, x2, yc) {
+    const lw = 11*s;
+    ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // Tige
+    ctx.beginPath(); ctx.moveTo(x1*s, yc*s); ctx.lineTo(x2*s, yc*s);
+    ctx.strokeStyle = arrG; ctx.stroke();
+    // Tête
+    const tx = (x2+5)*s, off = 24*s;
+    ctx.beginPath();
+    ctx.moveTo(tx - off, yc*s - off*0.9);
+    ctx.lineTo(tx, yc*s);
+    ctx.lineTo(tx - off, yc*s + off*0.9);
+    ctx.strokeStyle = '#7dd3fc'; ctx.stroke();
+  }
+
+  ctx.shadowColor = '#38bdf8'; ctx.shadowBlur = 12*s;
+  arrow(104, 173, 256);
+  arrow(208, 277, 256);
+  arrow(312, 381, 256);
+  ctx.shadowBlur = 0;
+
+  // Badge étoile
+  const bx = 390*s, by = 118*s, br = 70*s;
+  const badgeG = ctx.createRadialGradient(bx, by*0.8, 0, bx, by, br);
+  badgeG.addColorStop(0, '#22d3ee');
+  badgeG.addColorStop(1, '#0ea5e9');
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 12*s; ctx.shadowOffsetY = 5*s;
+  ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI*2);
+  ctx.fillStyle = badgeG; ctx.fill();
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+  // Étoile 4 branches
+  ctx.fillStyle = 'white';
+  ctx.beginPath();
+  const pts = starPoints(bx, by, 50*s, 18*s, 4);
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.closePath(); ctx.fill();
+
+  // Petits éclats
+  [[390,60],[440,90],[345,85]].forEach(([ex,ey],i) => {
+    const er = [5,4,3][i]*s;
+    ctx.beginPath(); ctx.arc(ex*s, ey*s, er, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${[0.65,0.5,0.4][i]})`; ctx.fill();
+  });
+
+  // Bordure subtile
+  ctx.beginPath();
+  const br2 = 108*s;
+  roundRect(ctx, 4*s, 4*s, size-8*s, size-8*s, br2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 8*s; ctx.stroke();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+function starPoints(cx, cy, outerR, innerR, points) {
+  const res = [];
+  for (let i = 0; i < points * 2; i++) {
+    const angle = (i * Math.PI / points) - Math.PI / 2;
+    const r = i % 2 === 0 ? outerR : innerR;
+    res.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
+  }
+  return res;
+}
+
+// ── Prévisualisation ─────────────────────────────────────────────────────────
+const preview = document.getElementById('preview');
+const pCtx = preview.getContext('2d');
+drawLogo(pCtx, 256);
+
+// ── Génération ICO ───────────────────────────────────────────────────────────
+async function downloadIco() {
+  const btn = document.querySelector('.btn');
+  const status = document.getElementById('status');
+  btn.textContent = '⏳ Génération…';
+  btn.disabled = true;
+
+  // Tailles standards Windows : 256, 128, 64, 48, 32, 16
+  const sizes = [256, 128, 64, 48, 32, 16];
+  const pngBuffers = [];
+
+  for (const size of sizes) {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    drawLogo(c.getContext('2d'), size);
+    const buf = await new Promise(res => {
+      c.toBlob(b => b.arrayBuffer().then(res), 'image/png');
+    });
+    pngBuffers.push({ size, buf });
+  }
+
+  // Construire le fichier ICO multi-résolution
+  const n = pngBuffers.length;
+  const headerSize = 6;
+  const dirSize = 16 * n;
+  const totalPngSize = pngBuffers.reduce((a, { buf }) => a + buf.byteLength, 0);
+  const total = headerSize + dirSize + totalPngSize;
+
+  const icoData = new Uint8Array(total);
+  const view = new DataView(icoData.buffer);
+
+  // ICO header
+  view.setUint16(0, 0, true);  // reserved
+  view.setUint16(2, 1, true);  // type: icon
+  view.setUint16(4, n, true);  // count
+
+  let offset = headerSize + dirSize;
+  pngBuffers.forEach(({ size, buf }, i) => {
+    const de = headerSize + i * 16;
+    icoData[de + 0] = size >= 256 ? 0 : size;   // width (0 = 256)
+    icoData[de + 1] = size >= 256 ? 0 : size;   // height
+    icoData[de + 2] = 0;  // color count
+    icoData[de + 3] = 0;  // reserved
+    view.setUint16(de + 4, 1,  true);            // planes
+    view.setUint16(de + 6, 32, true);            // bit count
+    view.setUint32(de + 8,  buf.byteLength, true); // size
+    view.setUint32(de + 12, offset, true);         // offset
+
+    icoData.set(new Uint8Array(buf), offset);
+    offset += buf.byteLength;
+  });
+
+  // Téléchargement
+  const blob = new Blob([icoData.buffer], { type: 'image/x-icon' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'PlanPhoto.ico'; a.click();
+  URL.revokeObjectURL(url);
+
+  btn.innerHTML = '⬇ Télécharger PlanPhoto.ico';
+  btn.disabled = false;
+  status.textContent = '✓ Fichier PlanPhoto.ico téléchargé';
+  setTimeout(() => { status.textContent = ''; }, 4000);
+}
+</script>
+</body>
+</html>

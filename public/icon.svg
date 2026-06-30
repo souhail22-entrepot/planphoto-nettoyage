@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Fond principal bleu marine → bleu ciel -->
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#0a1f4e"/>
+      <stop offset="50%"  stop-color="#0c3080"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+    <!-- Reflet haut -->
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="rgba(255,255,255,0.18)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+    <!-- Dégradé des flèches -->
+    <linearGradient id="arrG" x1="80" y1="0" x2="432" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#93c5fd"/>
+    </linearGradient>
+    <!-- Dégradé conduit -->
+    <linearGradient id="ductG" x1="0" y1="0" x2="512" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="rgba(147,210,253,0.5)"/>
+      <stop offset="100%" stop-color="rgba(147,210,253,0.9)"/>
+    </linearGradient>
+    <!-- Badge vert propre -->
+    <radialGradient id="badgeG" cx="50%" cy="35%" r="60%">
+      <stop offset="0%"   stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </radialGradient>
+    <!-- Ombre portée légère -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="rgba(0,0,0,0.35)"/>
+    </filter>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Clip arrondi -->
+    <clipPath id="rounded">
+      <rect width="512" height="512" rx="112"/>
+    </clipPath>
+  </defs>
+
+  <!-- Fond arrondi avec clip -->
+  <g clip-path="url(#rounded)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+    <!-- Reflet doux en haut -->
+    <rect width="512" height="256" fill="url(#shine)"/>
+    <!-- Cercle lumineux au centre-haut -->
+    <ellipse cx="256" cy="90" rx="220" ry="100" fill="rgba(56,189,248,0.07)"/>
+  </g>
+
+  <!-- === CONDUIT PRINCIPAL === -->
+  <!-- Corps du conduit (rectangle) -->
+  <rect x="60" y="175" width="392" height="162" rx="20"
+        fill="rgba(10,40,100,0.45)" stroke="url(#ductG)" stroke-width="8"/>
+
+  <!-- Embout gauche -->
+  <rect x="44" y="197" width="22" height="118" rx="8"
+        fill="rgba(147,210,253,0.35)" stroke="rgba(147,210,253,0.7)" stroke-width="3"/>
+  <!-- Embout droit -->
+  <rect x="446" y="197" width="22" height="118" rx="8"
+        fill="rgba(147,210,253,0.35)" stroke="rgba(147,210,253,0.7)" stroke-width="3"/>
+
+  <!-- Vis de fixation (détail réaliste) -->
+  <circle cx="78"  cy="193" r="6" fill="rgba(147,210,253,0.3)" stroke="rgba(147,210,253,0.5)" stroke-width="1.5"/>
+  <circle cx="78"  cy="319" r="6" fill="rgba(147,210,253,0.3)" stroke="rgba(147,210,253,0.5)" stroke-width="1.5"/>
+  <circle cx="434" cy="193" r="6" fill="rgba(147,210,253,0.3)" stroke="rgba(147,210,253,0.5)" stroke-width="1.5"/>
+  <circle cx="434" cy="319" r="6" fill="rgba(147,210,253,0.3)" stroke="rgba(147,210,253,0.5)" stroke-width="1.5"/>
+
+  <!-- === FLÈCHES DE FLUX D'AIR (3 flèches) === -->
+  <g filter="url(#glow)">
+    <!-- Flèche 1 -->
+    <line x1="104" y1="256" x2="168" y2="256" stroke="url(#arrG)" stroke-width="11" stroke-linecap="round"/>
+    <polyline points="148,232 173,256 148,280" fill="none" stroke="#7dd3fc" stroke-width="11"
+              stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Flèche 2 -->
+    <line x1="208" y1="256" x2="272" y2="256" stroke="url(#arrG)" stroke-width="11" stroke-linecap="round"/>
+    <polyline points="252,232 277,256 252,280" fill="none" stroke="#7dd3fc" stroke-width="11"
+              stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Flèche 3 -->
+    <line x1="312" y1="256" x2="376" y2="256" stroke="url(#arrG)" stroke-width="11" stroke-linecap="round"/>
+    <polyline points="356,232 381,256 356,280" fill="none" stroke="#7dd3fc" stroke-width="11"
+              stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- === BADGE "PROPRE / CERTIFIÉ" (coin supérieur droit) === -->
+  <circle cx="390" cy="118" r="70" fill="url(#badgeG)" filter="url(#shadow)"/>
+  <!-- Cercle intérieur subtil -->
+  <circle cx="390" cy="118" r="70" fill="rgba(255,255,255,0.1)"/>
+  <!-- Étoile 4 branches (symbole de propreté) -->
+  <path d="M390 68 L400 102 L434 118 L400 134 L390 168 L380 134 L346 118 L380 102 Z"
+        fill="white"/>
+  <!-- Petits éclats autour de l'étoile -->
+  <circle cx="390" cy="60" r="5" fill="rgba(255,255,255,0.6)"/>
+  <circle cx="440" cy="90" r="4" fill="rgba(255,255,255,0.5)"/>
+  <circle cx="345" cy="85" r="3" fill="rgba(255,255,255,0.4)"/>
+
+  <!-- Bordure arrondie externe (finition) -->
+  <rect x="4" y="4" width="504" height="504" rx="110"
+        fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="8"/>
+</svg>

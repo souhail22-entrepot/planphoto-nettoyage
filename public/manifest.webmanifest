@@ -1,0 +1,28 @@
+{
+  "name": "PlanPhoto Nettoyage",
+  "short_name": "PlanPhoto",
+  "description": "Gestion professionnelle des travaux de nettoyage de conduits CVAC — NADCA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a1f4e",
+  "theme_color": "#0c3080",
+  "orientation": "landscape-primary",
+  "lang": "fr",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

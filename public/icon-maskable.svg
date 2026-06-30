@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#0a1f4e"/>
+      <stop offset="50%"  stop-color="#0c3080"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+    <linearGradient id="shine2" x1="0" y1="0" x2="0" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="rgba(255,255,255,0.15)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+    <linearGradient id="arr2" x1="100" y1="0" x2="412" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#93c5fd"/>
+    </linearGradient>
+    <linearGradient id="duct2" x1="0" y1="0" x2="512" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="rgba(147,210,253,0.5)"/>
+      <stop offset="100%" stop-color="rgba(147,210,253,0.9)"/>
+    </linearGradient>
+    <radialGradient id="badge2" cx="50%" cy="35%" r="60%">
+      <stop offset="0%"   stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </radialGradient>
+    <filter id="glow2">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Fond plein (maskable = fond bord à bord) -->
+  <rect width="512" height="512" fill="url(#bg2)"/>
+  <rect width="512" height="256" fill="url(#shine2)"/>
+
+  <!-- Conduit -->
+  <rect x="50" y="185" width="412" height="142" rx="18"
+        fill="rgba(10,40,100,0.45)" stroke="url(#duct2)" stroke-width="7"/>
+  <rect x="36" y="205" width="20" height="102" rx="7"
+        fill="rgba(147,210,253,0.35)" stroke="rgba(147,210,253,0.6)" stroke-width="2.5"/>
+  <rect x="456" y="205" width="20" height="102" rx="7"
+        fill="rgba(147,210,253,0.35)" stroke="rgba(147,210,253,0.6)" stroke-width="2.5"/>
+
+  <!-- Flèches flux -->
+  <g filter="url(#glow2)">
+    <line x1="110" y1="256" x2="170" y2="256" stroke="url(#arr2)" stroke-width="10" stroke-linecap="round"/>
+    <polyline points="150,234 175,256 150,278" fill="none" stroke="#7dd3fc" stroke-width="10"
+              stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="216" y1="256" x2="276" y2="256" stroke="url(#arr2)" stroke-width="10" stroke-linecap="round"/>
+    <polyline points="256,234 281,256 256,278" fill="none" stroke="#7dd3fc" stroke-width="10"
+              stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="322" y1="256" x2="382" y2="256" stroke="url(#arr2)" stroke-width="10" stroke-linecap="round"/>
+    <polyline points="362,234 387,256 362,278" fill="none" stroke="#7dd3fc" stroke-width="10"
+              stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Badge étoile -->
+  <circle cx="390" cy="115" r="68" fill="url(#badge2)"/>
+  <circle cx="390" cy="115" r="68" fill="rgba(255,255,255,0.08)"/>
+  <path d="M390 66 L400 100 L434 115 L400 130 L390 164 L380 130 L346 115 L380 100 Z" fill="white"/>
+  <circle cx="390" cy="58" r="5" fill="rgba(255,255,255,0.55)"/>
+  <circle cx="440" cy="88" r="4" fill="rgba(255,255,255,0.45)"/>
+</svg>
