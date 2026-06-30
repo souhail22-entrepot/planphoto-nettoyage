@@ -1,4 +1,4 @@
-import { Plus, Upload, FileText } from 'lucide-react'
+import { Plus, Upload, FileText, FolderOpen, Calendar, MapPin } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import toast from 'react-hot-toast'
@@ -83,6 +83,7 @@ export default function WelcomeScreen({ onProjectCreated }: Props) {
   const setCurrentProject     = useAppStore((s) => s.setCurrentProject)
   const importFromInspection  = useAppStore((s) => s.importFromInspection)
   const importProjectJSON     = useAppStore((s) => s.importProjectJSON)
+  const projects              = useAppStore((s) => [...s.projects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)))
 
   const [mode, setMode] = useState<Mode>('home')
   const [form, setForm] = useState({
@@ -101,6 +102,11 @@ export default function WelcomeScreen({ onProjectCreated }: Props) {
   function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     const id = createProject({ ...form, description: '' })
+    setCurrentProject(id)
+    onProjectCreated()
+  }
+
+  function openProject(id: string) {
     setCurrentProject(id)
     onProjectCreated()
   }
@@ -239,54 +245,92 @@ export default function WelcomeScreen({ onProjectCreated }: Props) {
       </header>
 
       {/* Contenu central */}
-      <div className="relative z-10 flex-1 flex items-center justify-center px-6">
-        <div className="text-center max-w-sm w-full">
+      <div className="relative z-10 flex-1 flex items-start justify-center px-6 py-10 overflow-y-auto">
+        <div className="w-full max-w-3xl">
 
-          {/* Logo principal */}
-          <div className="flex justify-center mb-8">
-            <div className="relative">
-              <AppLogo size={96} />
+          {/* Logo + titre */}
+          <div className="flex items-center gap-5 mb-10">
+            <div className="relative shrink-0">
+              <AppLogo size={72} />
               <div className="absolute inset-0 -z-10 blur-2xl scale-150 bg-sky-500/20 rounded-full" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-black tracking-tight leading-none" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                <span className="text-white">Plan</span><span className="text-sky-400">Photo</span>
+                <span className="ml-3 text-xl font-bold text-slate-500">Nettoyage</span>
+              </h1>
+              <p className="text-slate-500 text-sm mt-1">Gestion professionnelle des travaux de nettoyage de conduits CVAC</p>
             </div>
           </div>
 
-          {/* Nom de l'application */}
-          <h1 className="text-5xl font-black tracking-tight mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            <span className="text-white">Plan</span><span className="text-sky-400">Photo</span>
-          </h1>
-          <div className="flex items-center justify-center gap-3 mb-3">
-            <div className="h-px flex-1 bg-gradient-to-r from-transparent to-slate-700" />
-            <span className="text-[11px] font-bold tracking-[0.25em] text-slate-500 uppercase">Nettoyage</span>
-            <div className="h-px flex-1 bg-gradient-to-l from-transparent to-slate-700" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            {/* Colonne gauche — actions */}
+            <div className="flex flex-col gap-3">
+              <button onClick={() => setMode('new')}
+                className="group flex items-center justify-center gap-3 px-5 py-4 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-semibold text-sm shadow-xl shadow-sky-500/25 hover:shadow-sky-400/35 transition-all hover:-translate-y-0.5 active:translate-y-0">
+                <Plus className="w-5 h-5" />
+                Nouveau projet
+              </button>
+
+              <button onClick={() => inspImportRef.current?.click()}
+                className="flex items-center justify-center gap-3 px-5 py-3.5 bg-slate-800/70 hover:bg-slate-800 border border-slate-700 hover:border-sky-600/50 text-slate-200 rounded-xl font-semibold text-sm backdrop-blur transition-all hover:-translate-y-0.5">
+                <Upload className="w-4 h-4 text-sky-400" />
+                Importer depuis inspection
+              </button>
+
+              <button onClick={() => projImportRef.current?.click()}
+                className="flex items-center justify-center gap-3 px-5 py-3.5 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 text-slate-500 hover:text-slate-300 rounded-xl text-sm transition-all">
+                <FileText className="w-4 h-4" />
+                Ouvrir un projet (.json)
+              </button>
+            </div>
+
+            {/* Colonne droite — projets récents */}
+            <div className="lg:col-span-2">
+              {projects.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center py-12 border border-dashed border-slate-800 rounded-xl text-slate-600">
+                  <FolderOpen className="w-10 h-10 mb-3 opacity-40" />
+                  <p className="text-sm font-medium">Aucun projet enregistré</p>
+                  <p className="text-xs mt-1 opacity-70">Créez votre premier projet ci-contre</p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Projets récents</p>
+                  <div className="flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-1">
+                    {projects.map((proj) => (
+                      <button
+                        key={proj.id}
+                        onClick={() => openProject(proj.id)}
+                        className="group w-full text-left flex items-center gap-4 px-4 py-3.5 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 hover:border-sky-700/50 rounded-xl transition-all hover:-translate-y-0.5"
+                      >
+                        <div className="w-9 h-9 rounded-lg bg-sky-900/40 border border-sky-800/50 flex items-center justify-center shrink-0">
+                          <FolderOpen className="w-4.5 h-4.5 text-sky-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-slate-100 truncate group-hover:text-sky-300 transition-colors">{proj.name}</p>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            {proj.client && (
+                              <span className="text-xs text-slate-500 truncate">{proj.client}</span>
+                            )}
+                            {proj.adresse && (
+                              <span className="flex items-center gap-1 text-xs text-slate-600 truncate">
+                                <MapPin className="w-3 h-3 shrink-0" />{proj.adresse}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-1 text-xs text-slate-600">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(proj.updatedAt).toLocaleDateString('fr-CA')}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          <p className="text-slate-500 text-sm mb-10 leading-relaxed">
-            Gestion professionnelle des travaux<br />de nettoyage de conduits CVAC
-          </p>
-
-          {/* Boutons d'action */}
-          <div className="flex flex-col gap-3">
-            <button onClick={() => setMode('new')}
-              className="group flex items-center justify-center gap-3 px-6 py-4 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-semibold text-sm shadow-xl shadow-sky-500/25 hover:shadow-sky-400/35 transition-all hover:-translate-y-0.5 active:translate-y-0">
-              <Plus className="w-5 h-5" />
-              Nouveau projet de nettoyage
-            </button>
-
-            <button onClick={() => inspImportRef.current?.click()}
-              className="flex items-center justify-center gap-3 px-6 py-4 bg-slate-800/70 hover:bg-slate-800 border border-slate-700 hover:border-sky-600/50 text-slate-200 rounded-xl font-semibold text-sm backdrop-blur transition-all hover:-translate-y-0.5">
-              <Upload className="w-4.5 h-4.5 text-sky-400" />
-              Importer depuis une inspection
-            </button>
-
-            <button onClick={() => projImportRef.current?.click()}
-              className="flex items-center justify-center gap-3 px-6 py-4 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 text-slate-500 hover:text-slate-300 rounded-xl text-sm transition-all">
-              <FileText className="w-4 h-4" />
-              Ouvrir un projet (.json)
-            </button>
-          </div>
-
-          <p className="text-xs text-slate-700 mt-8">
-            Les projets existants sont accessibles via la barre latérale
-          </p>
         </div>
       </div>
 
