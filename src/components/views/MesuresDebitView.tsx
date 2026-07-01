@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { Plus, Upload, Trash2, Wind, X, Check, Move, FileDown, Hand, RefreshCw, Layers } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAppStore } from '@/store/useAppStore'
-import { TYPE_POINT_DEBIT, METHODE_MESURE_LABELS, type TypePointDebit, type UniteDebit, type PointDebit, type MethodeMesure, type Systeme } from '@/types'
+import { TYPE_POINT_DEBIT, METHODE_MESURE_LABELS, type TypePointDebit, type UniteDebit, type PointDebit, type MethodeMesure, type Systeme, type PlanDebit } from '@/types'
 import { generateDebitReport } from '@/services/debitPdfGenerator'
 import { savePlanImage } from '@/services/planImageStorage'
 
@@ -869,7 +869,7 @@ export default function MesuresDebitView() {
                     const avantOk = pt.debitAvant !== undefined
                     const apresOk = pt.debitApres !== undefined
                     const statutDot = avantOk && apresOk ? 'bg-green-500' : avantOk || apresOk ? 'bg-amber-400' : 'bg-gray-300'
-                    const isSelected = editingPoint?.id === pt.id
+                    const isSelected = (editingPoint as PointDebit | null)?.id === pt.id
                     return (
                       <tr key={pt.id}
                         onClick={() => setEditingPoint(pt)}
