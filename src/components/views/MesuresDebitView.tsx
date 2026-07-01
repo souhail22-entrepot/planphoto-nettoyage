@@ -1,9 +1,10 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
-import { Plus, Upload, Trash2, Wind, X, Check, Move, FileDown, Hand } from 'lucide-react'
+import { Plus, Upload, Trash2, Wind, X, Check, Move, FileDown, Hand, RefreshCw, Layers } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAppStore } from '@/store/useAppStore'
 import { TYPE_POINT_DEBIT, METHODE_MESURE_LABELS, type TypePointDebit, type UniteDebit, type PointDebit, type MethodeMesure, type Systeme } from '@/types'
 import { generateDebitReport } from '@/services/debitPdfGenerator'
+import { savePlanImage } from '@/services/planImageStorage'
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 
@@ -241,12 +242,18 @@ export default function MesuresDebitView() {
   const addPointDebit     = useAppStore((s) => s.addPointDebit)
   const updatePointDebit  = useAppStore((s) => s.updatePointDebit)
   const deletePointDebit  = useAppStore((s) => s.deletePointDebit)
+  const companyLogo       = useAppStore((s) => s.companyLogo)
 
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
   const [editingPoint, setEditingPoint]     = useState<PointDebit | null>(null)
   const [isAddMode, setIsAddMode]           = useState(false)
+  const [isBurstMode, setIsBurstMode]       = useState(false)
+  const [burstSystemeId, setBurstSystemeId] = useState('')
+  const [burstType, setBurstType]           = useState<TypePointDebit>('diffuseur')
+  const [burstMethode, setBurstMethode]     = useState<MethodeMesure | ''>('')
   const [unite, setUnite]                   = useState<UniteDebit>('CFM')
   const [uploading, setUploading]           = useState(false)
+  const [replacingId, setReplacingId]       = useState<string | null>(null)
   const [exporting, setExporting]           = useState(false)
   const [scale, setScale]     = useState(1)
   const [isPanMode, setIsPanMode] = useState(false)
@@ -255,6 +262,7 @@ export default function MesuresDebitView() {
   const systemes = project?.systemes ?? []
 
   const fileInputRef     = useRef<HTMLInputElement>(null)
+  const replaceInputRef  = useRef<HTMLInputElement>(null)
   const planContainerRef = useRef<HTMLDivElement>(null)
   const canvasAreaRef    = useRef<HTMLDivElement>(null)
   const scaleRef         = useRef(1)  // valeur courante sans dépendance de closure
@@ -315,7 +323,7 @@ export default function MesuresDebitView() {
     if (!el) return
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
-  }, [handleWheel])
+  }, [handleWheel, plansDebit.length > 0])
 
   // ── Drag-to-pan (outil main) ──────────────────────────────────────────────
   const handleCanvasPanStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -343,7 +351,10 @@ export default function MesuresDebitView() {
 
   function nextIdentifiant(type: TypePointDebit, planId: string): string {
     const prefix = ABBR_COUNT_KEY[type]
-    const existingNums = pointsDebit
+    // Lit l'état frais du store (pas la valeur de pointsDebit capturée par la closure du
+    // callback appelant) — sinon des clics successifs en mode "Ajout multiple" recalculent
+    // toujours le même numéro car le callback n'est pas recréé entre deux clics.
+    const existingNums = useAppStore.getState().pointsDebit
       .filter((p) => p.planDebitId === planId && p.identifiant.startsWith(prefix + '-'))
       .map((p) => parseInt(p.identifiant.slice(prefix.length + 1), 10))
       .filter((n) => !isNaN(n))
@@ -394,14 +405,54 @@ export default function MesuresDebitView() {
     }
   }
 
+  // ── Remplacer l'image d'un plan existant (image perdue en IndexedDB) ──────
+  // Conserve le même planDebitId → les points de mesure déjà placés restent liés.
+
+  async function handleReplaceImage(planId: string, files: FileList | null) {
+    const file = files?.[0]
+    if (!file) return
+    setReplacingId(planId)
+    try {
+      const isPdf = file.type === 'application/pdf'
+      const imageData = isPdf ? await readFileAsDataURL(file, true) : await readFileAsDataURL(file, false)
+      const dims = await getImageDimensions(imageData)
+      await savePlanImage(planId, imageData)
+      updatePlanDebit(planId, { url: imageData, width: dims.w, height: dims.h })
+      toast.success('Plan restauré')
+    } catch {
+      toast.error('Erreur lors du remplacement du plan')
+    } finally {
+      setReplacingId(null)
+    }
+  }
+
   // ── Click on plan canvas → add pin ───────────────────────────────────────
 
   const handlePlanClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isAddMode) { setEditingPoint(null); return }
+    if (!isAddMode && !isBurstMode) { setEditingPoint(null); return }
     if (!currentPlan || !currentProjectId) return
     const rect = e.currentTarget.getBoundingClientRect()
     const x = ((e.clientX - rect.left) / rect.width)  * 100
     const y = ((e.clientY - rect.top)  / rect.height) * 100
+
+    if (isBurstMode) {
+      // Ajout multiple : place le point avec système + type présélectionnés,
+      // ne touche ni au panneau d'édition ni au mode (reste actif pour le prochain clic)
+      addPointDebit({
+        planDebitId:  currentPlan.id,
+        projectId:    currentProjectId,
+        identifiant:  nextIdentifiant(burstType, currentPlan.id),
+        type:         burstType,
+        local:        '',
+        x,
+        y,
+        unite,
+        systemeId:    burstSystemeId || undefined,
+        methode:      burstMethode || undefined,
+      })
+      return
+    }
+
     const id = addPointDebit({
       planDebitId:  currentPlan.id,
       projectId:    currentProjectId,
@@ -415,7 +466,7 @@ export default function MesuresDebitView() {
     const newPoint = useAppStore.getState().pointsDebit.find((p) => p.id === id)
     if (newPoint) setEditingPoint(newPoint)
     setIsAddMode(false)
-  }, [isAddMode, currentPlan, currentProjectId, unite, addPointDebit])
+  }, [isAddMode, isBurstMode, burstType, burstSystemeId, burstMethode, currentPlan, currentProjectId, unite, addPointDebit])
 
   // ── Pin drag / click ──────────────────────────────────────────────────────
   // Click court (< 5px de mouvement) → ouvre le panneau
@@ -537,7 +588,9 @@ export default function MesuresDebitView() {
                     const img = await capturePlanForReport(plan, pts)
                     if (img) planImages[plan.id] = img
                   }
-                  await generateDebitReport(project, plansDebit, pointsDebit, unite, systemes, planImages)
+                  // Injecter le logo entreprise global (priorité sur project.logo), comme le rapport de nettoyage
+                  const projectWithLogo = companyLogo ? { ...project, logo: companyLogo } : project
+                  await generateDebitReport(projectWithLogo, plansDebit, pointsDebit, unite, systemes, planImages)
                   toast.success('Rapport exporté')
                 } catch {
                   toast.error('Erreur lors de l\'export')
@@ -590,23 +643,67 @@ export default function MesuresDebitView() {
                   }`}>
                   {p.name}
                   {p.id === currentPlan?.id && (
-                    <span onClick={(e) => { e.stopPropagation(); if (window.confirm(`Supprimer le plan "${p.name}" ?`)) deletePlanDebit(p.id) }}
-                      className="ml-1 opacity-70 hover:opacity-100 cursor-pointer">×</span>
+                    <>
+                      <span
+                        title="Remplacer l'image du plan"
+                        onClick={(e) => { e.stopPropagation(); setReplacingId(p.id); replaceInputRef.current?.click() }}
+                        className="ml-1 opacity-70 hover:opacity-100 cursor-pointer">
+                        <RefreshCw className={`w-3 h-3 ${replacingId === p.id ? 'animate-spin' : ''}`} />
+                      </span>
+                      <span onClick={(e) => { e.stopPropagation(); if (window.confirm(`Supprimer le plan "${p.name}" ?`)) deletePlanDebit(p.id) }}
+                        className="ml-1 opacity-70 hover:opacity-100 cursor-pointer">×</span>
+                    </>
                   )}
                 </button>
               ))}
             </div>
+            <input ref={replaceInputRef} type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="hidden"
+              onChange={(e) => { if (replacingId) handleReplaceImage(replacingId, e.target.files); e.target.value = '' }} />
 
             {/* Barre d'outils canvas */}
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex-shrink-0">
               {/* Outil ajouter point */}
-              <button onClick={() => { setIsAddMode(!isAddMode); setIsPanMode(false) }}
+              <button onClick={() => { setIsAddMode(!isAddMode); setIsPanMode(false); setIsBurstMode(false) }}
                 className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                   isAddMode ? 'bg-green-600 text-white' : 'text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
                 }`}>
                 <Plus className="w-3.5 h-3.5" />
                 {isAddMode ? 'Cliquez sur le plan…' : 'Ajouter un point'}
               </button>
+
+              {/* Outil ajout multiple — système + type présélectionnés, plusieurs clics successifs */}
+              <button onClick={() => { setIsBurstMode(!isBurstMode); setIsAddMode(false); setIsPanMode(false) }}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  isBurstMode ? 'bg-green-600 text-white' : 'text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}>
+                <Layers className="w-3.5 h-3.5" />
+                {isBurstMode ? 'Cliquez plusieurs fois…' : 'Ajout multiple'}
+              </button>
+              {isBurstMode && (
+                <>
+                  {systemes.length > 0 && (
+                    <select value={burstSystemeId} onChange={(e) => setBurstSystemeId(e.target.value)}
+                      className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">
+                      <option value="">— Système —</option>
+                      {systemes.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
+                    </select>
+                  )}
+                  <select value={burstType} onChange={(e) => setBurstType(e.target.value as TypePointDebit)}
+                    className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">
+                    {(Object.entries(TYPE_POINT_DEBIT) as [TypePointDebit, { label: string }][]).map(([k, v]) => (
+                      <option key={k} value={k}>{v.label}</option>
+                    ))}
+                  </select>
+                  <select value={burstMethode} onChange={(e) => setBurstMethode(e.target.value as MethodeMesure | '')}
+                    className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">
+                    <option value="">— Méthode —</option>
+                    {(Object.entries(METHODE_MESURE_LABELS) as [MethodeMesure, string][]).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+
               <span className="text-[10px] text-gray-400 ml-1 flex items-center gap-1">
                 <Move className="w-3 h-3" />
                 Cliquez pour modifier
@@ -630,7 +727,7 @@ export default function MesuresDebitView() {
                 <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />
                 <button
                   title="Outil main — glisser pour déplacer le plan"
-                  onClick={() => { setIsPanMode((v) => !v); setIsAddMode(false) }}
+                  onClick={() => { setIsPanMode((v) => !v); setIsAddMode(false); setIsBurstMode(false) }}
                   className={`w-6 h-6 flex items-center justify-center rounded border transition-colors ${
                     isPanMode
                       ? 'bg-amber-500 border-amber-500 text-white'
@@ -648,7 +745,7 @@ export default function MesuresDebitView() {
               style={{
                 cursor: isPanMode
                   ? (isPanningCanvas.current ? 'grabbing' : 'grab')
-                  : isAddMode ? 'crosshair' : 'default',
+                  : (isAddMode || isBurstMode) ? 'crosshair' : 'default',
               }}
               onMouseDown={handleCanvasPanStart}
             >
@@ -699,11 +796,18 @@ export default function MesuresDebitView() {
                     })}
                   </div>
                 </div>
-              ) : (
-                <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                  Chargement du plan…
+              ) : currentPlan ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400 text-sm">
+                  <p>Image du plan introuvable — elle a peut-être été effacée du stockage local.</p>
+                  <button
+                    disabled={replacingId === currentPlan.id}
+                    onClick={() => { setReplacingId(currentPlan.id); replaceInputRef.current?.click() }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50">
+                    <RefreshCw className={`w-3.5 h-3.5 ${replacingId === currentPlan.id ? 'animate-spin' : ''}`} />
+                    {replacingId === currentPlan.id ? 'Restauration…' : 'Remplacer le plan'}
+                  </button>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -919,8 +1023,6 @@ async function capturePlanForReport(plan: PlanDebit, points: PointDebit[]): Prom
       const ctx = canvas.getContext('2d')!
       ctx.drawImage(img, 0, 0, OUT_W, OUT_H)
 
-      const R = Math.round(OUT_W * 0.020)  // rayon du cercle-label (~7mm à l'échelle PDF)
-
       // Position réelle de chaque épingle (centre du plan, %)
       const pins = points.map((pt) => ({
         pt,
@@ -931,6 +1033,27 @@ async function capturePlanForReport(plan: PlanDebit, points: PointDebit[]): Prom
 
       // Trier haut→bas, gauche→droite pour priorité de placement stable
       pins.sort((a, b) => a.cy - b.cy || a.cx - b.cx)
+
+      // Rayon du cercle-label dynamique — basé sur la densité réelle des points sur CE plan,
+      // pour rester lisible et bien placé sans se chevaucher ni cacher le plan quand il y a
+      // beaucoup de points rapprochés (zones denses de diffuseurs/grilles).
+      const R_MAX = Math.round(OUT_W * 0.020)  // taille "confortable" (~7mm à l'échelle PDF), peu de points
+      const R_MIN = Math.round(OUT_W * 0.009)  // plancher lisible, plans très denses
+      let R = R_MAX
+      if (pins.length > 1) {
+        const nearestDists = pins.map((p, i) => {
+          let min = Infinity
+          for (let j = 0; j < pins.length; j++) {
+            if (j === i) continue
+            const d = Math.hypot(pins[j].cx - p.cx, pins[j].cy - p.cy)
+            if (d < min) min = d
+          }
+          return min
+        }).sort((a, b) => a - b)
+        // 25e percentile : reflète les zones les plus denses sans être dicté par un seul point isolé
+        const p25 = nearestDists[Math.floor(nearestDists.length * 0.25)]
+        R = Math.round(Math.min(R_MAX, Math.max(R_MIN, p25 * 0.4)))
+      }
 
       // Centres déjà occupés par des labels
       const placed: { x: number; y: number }[] = []

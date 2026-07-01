@@ -1,6 +1,10 @@
 import jsPDF from 'jspdf'
 import type { Project, PlanDebit, PointDebit, Systeme } from '@/types'
 import { TYPE_POINT_DEBIT, METHODE_MESURE_LABELS } from '@/types'
+import { drawCoverPage, drawTextPageHeader, drawSectionPageFooter } from './pdfGenerator'
+
+// Libellé affiché dans l'en-tête (même forme que « Rapport de nettoyage — conduits de ventilation »)
+const HEADER_LABEL = "Rapport de mesures de débit d'air"
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const BLUE:  [number,number,number] = [27,  79,  138]
@@ -15,8 +19,11 @@ const PH   = 297
 const ML   = 14
 const MR   = 14
 const UW   = PW - ML - MR
-const MT   = 14
-const LINE = 6
+
+// Zone de contenu utile — mêmes bornes que les pages « rapport écrit » du rapport de
+// nettoyage (BODY_TOP = S_MT 10 + S_HDR_H 35 + 3 ; BODY_BOT = S_PH 297 - S_MB 10 - S_FTR_H 14 - 2).
+const CONTENT_TOP    = 48
+const CONTENT_BOTTOM = 271
 
 const safe = (v: any) => (v == null ? '' : String(v))
 
@@ -28,99 +35,30 @@ function typeRGB(type: string): [number,number,number] {
   return [100, 116, 139]
 }
 
-// ── Composite plan + pastilles sur canvas HTML ────────────────────────────────
-async function compositePlanWithPins(plan: PlanDebit, points: PointDebit[]): Promise<string | null> {
-  if (!plan.url) return null
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width  = img.naturalWidth
-      canvas.height = img.naturalHeight
-      const ctx = canvas.getContext('2d')!
-      ctx.drawImage(img, 0, 0)
-
-      const radius = Math.max(18, img.naturalWidth * 0.018)
-      const fontSize = Math.round(radius * 1.1)
-
-      for (const pt of points) {
-        const px = (pt.x / 100) * img.naturalWidth
-        const py = (pt.y / 100) * img.naturalHeight
-        const [r, g, b] = typeRGB(pt.type)
-
-        ctx.beginPath()
-        ctx.arc(px, py, radius, 0, Math.PI * 2)
-        ctx.fillStyle = `rgb(${r},${g},${b})`
-        ctx.fill()
-        ctx.strokeStyle = 'white'
-        ctx.lineWidth = Math.max(2, radius * 0.18)
-        ctx.stroke()
-
-        ctx.fillStyle = 'white'
-        ctx.font = `bold ${fontSize}px sans-serif`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        const label = pt.identifiant.length <= 5 ? pt.identifiant : pt.identifiant.slice(0, 5)
-        ctx.fillText(label, px, py)
-      }
-
-      resolve(canvas.toDataURL('image/png'))
-    }
-    img.onerror = () => resolve(null)
-    img.src = plan.url!
-  })
-}
-
-// ── En-tête de page ───────────────────────────────────────────────────────────
-function drawHeader(pdf: jsPDF, project: Project, pageNum: number, title: string) {
-  pdf.setFillColor(...BLUE)
-  pdf.rect(0, 0, PW, 18, 'F')
-
-  pdf.setFontSize(11)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setTextColor(...WHITE)
-  pdf.text('MESURES DE DÉBIT D\'AIR', ML, 7)
-  pdf.setFontSize(7.5)
-  pdf.setFont('helvetica', 'normal')
-  pdf.text(title, ML, 12.5)
-
-  pdf.setFontSize(7)
-  pdf.setTextColor(...WHITE)
-  pdf.text(`${safe(project.client)} · ${safe(project.name)}`, PW - MR, 7, { align: 'right' })
-  pdf.text(`Page ${pageNum}`, PW - MR, 12.5, { align: 'right' })
-}
-
-// ── Pied de page ──────────────────────────────────────────────────────────────
-function drawFooter(pdf: jsPDF) {
-  const y = PH - 10
-  pdf.setDrawColor(200, 210, 220)
-  pdf.setLineWidth(0.3)
-  pdf.line(ML, y - 2, PW - MR, y - 2)
-  pdf.setFontSize(6.5)
-  pdf.setTextColor(...LGRAY)
-  pdf.setFont('helvetica', 'italic')
-  pdf.text(
-    'Les débits d\'air ont été mesurés aux grilles et diffuseurs dans les conditions d\'exploitation présentes au moment des relevés. ' +
-    'Les résultats peuvent varier selon les conditions d\'opération du système.',
-    ML, y + 1, { maxWidth: UW }
-  )
-}
-
 // ── Tableau comparatif ────────────────────────────────────────────────────────
-function drawTable(
+// Async : peut ajouter des pages (en-tête/pied répétés) si le tableau ne tient pas
+// en une page — jamais de lignes tronquées silencieusement.
+async function drawTable(
   pdf: jsPDF,
+  project: Project,
   points: PointDebit[],
   unite: string,
   startY: number,
   systemes: Systeme[] = [],
-): number {
+  pageRef: { n: number } = { n: 0 },
+  // 'systeme' (défaut) : colonne Système — utilisé quand un même tableau mélange plusieurs
+  // systèmes (ex. par plan). 'plan' : colonne Plan — utilisé quand le tableau est déjà scindé
+  // par système (la colonne Système y serait redondante) et regroupe plusieurs plans.
+  refColumn: 'systeme' | 'plan' = 'systeme',
+  plansDebit: PlanDebit[] = [],
+): Promise<number> {
   const sorted = [...points].sort((a, b) => a.identifiant.localeCompare(b.identifiant, 'fr', { numeric: true }))
 
   // Colonnes redistributées pour donner plus de place aux observations
   const obsW = UW - 14 - 18 - 24 - 16 - 24 - 24 - 14 - 14
   const cols = [
     { label: 'ID',               w: 14,   align: 'left'  as const },
-    { label: 'Système',           w: 18,   align: 'left'  as const },
+    { label: refColumn === 'plan' ? 'Plan' : 'Système', w: 18, align: 'left' as const },
     { label: 'Local / Zone',      w: 24,   align: 'left'  as const },
     { label: 'Méthode',           w: 16,   align: 'left'  as const },
     { label: `Avant (${unite})`,  w: 24,   align: 'right' as const },
@@ -136,19 +74,32 @@ function drawTable(
 
   let y = startY
 
-  // En-tête tableau
-  pdf.setFillColor(...BLUE)
-  pdf.rect(ML, y, UW, BASE_ROW_H, 'F')
-  pdf.setFontSize(7)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setTextColor(...WHITE)
-  let cx = ML
-  for (const col of cols) {
-    const tx = col.align === 'right' ? cx + col.w - 2 : cx + 2
-    pdf.text(col.label, tx, y + 4.2, { align: col.align })
-    cx += col.w
+  const drawHeaderRow = () => {
+    pdf.setFillColor(...BLUE)
+    pdf.rect(ML, y, UW, BASE_ROW_H, 'F')
+    pdf.setFontSize(7)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(...WHITE)
+    let hx = ML
+    for (const col of cols) {
+      const tx = col.align === 'right' ? hx + col.w - 2 : hx + 2
+      pdf.text(col.label, tx, y + 4.2, { align: col.align })
+      hx += col.w
+    }
+    y += BASE_ROW_H
   }
-  y += BASE_ROW_H
+
+  const newTablePage = async () => {
+    drawSectionPageFooter(pdf)
+    pdf.addPage()
+    pageRef.n++
+    await drawTextPageHeader(pdf, project, pageRef.n, HEADER_LABEL)
+    y = CONTENT_TOP
+    drawHeaderRow()
+  }
+
+  drawHeaderRow()
+  let cx = ML
 
   // Lignes
   pdf.setFont('helvetica', 'normal')
@@ -159,7 +110,9 @@ function drawTable(
     const ecart     = (pt.debitAvant !== undefined && pt.debitApres !== undefined) ? pt.debitApres - pt.debitAvant : null
     const variation = (pt.debitAvant && ecart !== null) ? (ecart / pt.debitAvant) * 100 : null
 
-    const sysNom        = systemes.find((s) => s.id === pt.systemeId)?.nom ?? '—'
+    const refValue      = refColumn === 'plan'
+      ? (plansDebit.find((pl) => pl.id === pt.planDebitId)?.name ?? '—')
+      : (systemes.find((s) => s.id === pt.systemeId)?.nom ?? '—')
     const methode       = pt.methode ? (METHODE_MESURE_LABELS[pt.methode] ?? pt.methode) : '—'
     const avantStr      = pt.debitAvant !== undefined
       ? `${pt.debitAvant.toFixed(0)}${pt.dateAvant ? ` (${pt.dateAvant.slice(0, 10)})` : ''}`
@@ -174,6 +127,12 @@ function drawTable(
     const extraLines = Math.max(0, Math.min(obsLines.length, 3) - 1)
     const rowH = BASE_ROW_H + extraLines * LINE_H
 
+    // Nouvelle page si la ligne ne tient pas — en-tête de tableau répété automatiquement
+    if (y + rowH > CONTENT_BOTTOM) {
+      await newTablePage()
+      cx = ML
+    }
+
     // Fond alterné
     if (i % 2 === 0) {
       pdf.setFillColor(...LBLUE)
@@ -185,11 +144,11 @@ function drawTable(
     pdf.circle(ML + 3.5, y + BASE_ROW_H / 2, 2.2, 'F')
     pdf.setTextColor(...WHITE)
     pdf.setFontSize(5.5)
-    pdf.text(pt.identifiant.length <= 4 ? pt.identifiant : pt.type[0].toUpperCase(), ML + 3.5, y + BASE_ROW_H / 2 + 1.5, { align: 'center' })
+    pdf.text(pt.identifiant.length <= 4 ? pt.identifiant : pt.type[0].toUpperCase(), ML + 3.5, y + BASE_ROW_H / 2, { align: 'center', baseline: 'middle' })
 
     const cells = [
       pt.identifiant,
-      sysNom,
+      refValue,
       pt.local || '—',
       methode,
       avantStr,
@@ -225,8 +184,6 @@ function drawTable(
       cx += col.w
     }
     y += rowH
-
-    if (y > PH - 30) break
   }
 
   // Ligne de totaux
@@ -240,6 +197,11 @@ function drawTable(
         return s + v
       }, 0) / mesures.length
     : null
+
+  if (y + BASE_ROW_H > CONTENT_BOTTOM) {
+    await newTablePage()
+    cx = ML
+  }
 
   pdf.setFillColor(...BLUE)
   pdf.rect(ML, y, UW, BASE_ROW_H, 'F')
@@ -265,6 +227,19 @@ function drawTable(
   return y
 }
 
+// ── Titre de section dans le corps de page ────────────────────────────────────
+// L'en-tête (drawTextPageHeader) n'affiche pas de sous-titre par page : chaque section
+// s'identifie donc elle-même en haut du contenu, comme les pages « rapport écrit ».
+function drawSectionHeading(pdf: jsPDF, title: string, y: number): number {
+  pdf.setFillColor(...BLUE)
+  pdf.rect(ML, y - 4, 3, 6, 'F')
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(11)
+  pdf.setTextColor(...BLUE)
+  pdf.text(title, ML + 5, y)
+  return y + 7
+}
+
 // ── Légende ───────────────────────────────────────────────────────────────────
 function drawLegend(pdf: jsPDF, y: number): number {
   pdf.setFontSize(7)
@@ -284,23 +259,173 @@ function drawLegend(pdf: jsPDF, y: number): number {
   return y + 9
 }
 
-// ── Dimensions image ──────────────────────────────────────────────────────────
-async function getImageDimsPdf(dataUrl: string): Promise<{ w: number; h: number }> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload  = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
-    img.onerror = () => resolve({ w: 0, h: 0 })
-    img.src = dataUrl
-  })
+// ── Résumé exécutif ────────────────────────────────────────────────────────────
+function drawResumeExecutif(
+  pdf: jsPDF,
+  project: Project,
+  allPoints: PointDebit[],
+  systemes: Systeme[],
+  plansDebit: PlanDebit[],
+  unite: string,
+  startY: number,
+): number {
+  let y = startY
+
+  const paragraph = (text: string) => {
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8.5)
+    pdf.setTextColor(...DGRAY)
+    const lines = pdf.splitTextToSize(text, UW) as string[]
+    pdf.text(lines, ML, y)
+    y += lines.length * 4.2 + 4
+  }
+
+  y = drawSectionHeading(pdf, 'Résumé exécutif', y) + 2
+
+  const nomBatiment = project.nomImmeuble || project.name
+  const adresse = [project.adresse, project.ville].filter(Boolean).join(', ')
+  paragraph(
+    `Le présent rapport présente les résultats des mesures de débit d'air réalisées avant et après le nettoyage ` +
+    `des systèmes de ventilation${nomBatiment ? ` du bâtiment ${safe(nomBatiment)}` : ''}${adresse ? `, situé au ${safe(adresse)}` : ''}, ` +
+    `dans le cadre du mandat de nettoyage des conduits de ventilation CVCA${project.mandat ? ` (${safe(project.mandat)})` : ''}.`
+  )
+
+  const sysNoms = systemes.map((s) => s.nom).filter(Boolean)
+  if (sysNoms.length > 0) {
+    paragraph(
+      `Les travaux ont porté sur le nettoyage des systèmes suivants : ${sysNoms.join(', ')}. ` +
+      `Des mesures de débit d'air ont été effectuées aux diffuseurs, grilles de reprise et grilles d'extraction ` +
+      `identifiés sur ${plansDebit.length} plan${plansDebit.length > 1 ? 's' : ''} de repérage, avant et après l'intervention de nettoyage.`
+    )
+  } else {
+    paragraph(
+      `Des mesures de débit d'air ont été effectuées aux diffuseurs, grilles de reprise et grilles d'extraction ` +
+      `identifiés sur ${plansDebit.length} plan${plansDebit.length > 1 ? 's' : ''} de repérage, avant et après l'intervention de nettoyage.`
+    )
+  }
+
+  const periode = [
+    project.dateDebut ? `du ${project.dateDebut}` : '',
+    project.dateFin   ? `au ${project.dateFin}`   : '',
+  ].filter(Boolean).join(' ')
+  if (periode) {
+    paragraph(`La période d'intervention s'est déroulée ${periode}.`)
+  }
+
+  const totalAvant = allPoints.reduce((s, p) => s + (p.debitAvant ?? 0), 0)
+  const totalApres = allPoints.reduce((s, p) => s + (p.debitApres  ?? 0), 0)
+  const mesures    = allPoints.filter((p) => p.debitAvant !== undefined && p.debitApres !== undefined)
+  const ecart      = totalApres - totalAvant
+  const varMoy     = mesures.length > 0
+    ? mesures.reduce((s, p) => s + (p.debitAvant ? ((p.debitApres! - p.debitAvant) / p.debitAvant) * 100 : 0), 0) / mesures.length
+    : null
+
+  paragraph(
+    `Au total, ${allPoints.length} point${allPoints.length > 1 ? 's' : ''} de mesure ${allPoints.length > 1 ? 'ont' : 'a'} été relevé${allPoints.length > 1 ? 's' : ''}, ` +
+    `dont ${mesures.length} avec des débits complets avant et après nettoyage. Le débit total mesuré avant nettoyage s'élève à ${totalAvant.toFixed(0)} ${unite}, ` +
+    `comparativement à ${totalApres.toFixed(0)} ${unite} après nettoyage, soit un écart global de ${ecart >= 0 ? '+' : ''}${ecart.toFixed(0)} ${unite}` +
+    (varMoy !== null ? ` (variation moyenne de ${varMoy >= 0 ? '+' : ''}${varMoy.toFixed(1)} %).` : '.')
+  )
+
+  return y
 }
 
-function addLogoFit(pdf: jsPDF, dataUrl: string, dims: { w: number; h: number }, x: number, y: number, maxW: number, maxH: number) {
-  if (!dims.w || !dims.h) return
-  const ratio = Math.min(maxW / dims.w, maxH / dims.h)
-  const lw = dims.w * ratio
-  const lh = dims.h * ratio
-  const fmt = dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG'
-  pdf.addImage(dataUrl, fmt, x, y, lw, lh)
+// ── Conditions de mesure ───────────────────────────────────────────────────────
+function drawConditionsMesure(pdf: jsPDF, allPoints: PointDebit[], unite: string, startY: number): number {
+  let y = drawSectionHeading(pdf, 'Conditions de mesure', startY) + 2
+
+  const methodesUtilisees = [...new Set(allPoints.map((p) => p.methode).filter(Boolean))] as (keyof typeof METHODE_MESURE_LABELS)[]
+  const conditionsNotes   = [...new Set(allPoints.map((p) => p.conditions).filter(Boolean))]
+
+  const bullets: string[] = [
+    'Les systèmes de ventilation étaient en fonctionnement normal au moment des relevés.',
+    `Les débits ont été mesurés en conditions d'exploitation observées lors de l'intervention, sans modification des réglages du système.`,
+    `Unité de mesure : ${unite}.`,
+    methodesUtilisees.length > 0
+      ? `Instrumentation et méthode de prise de mesure : ${methodesUtilesText(methodesUtilisees)}.`
+      : `Méthode de prise de mesure : non précisée pour l'ensemble des points.`,
+  ]
+  if (conditionsNotes.length > 0) {
+    bullets.push(`Conditions particulières notées lors des relevés : ${conditionsNotes.join(' ; ')}.`)
+  }
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(8.5)
+  pdf.setTextColor(...DGRAY)
+  for (const b of bullets) {
+    const lines = pdf.splitTextToSize(`•  ${b}`, UW - 2) as string[]
+    pdf.text(lines, ML, y)
+    y += lines.length * 4.2 + 1.5
+  }
+
+  return y + 3
+}
+
+function methodesUtilesText(methodes: (keyof typeof METHODE_MESURE_LABELS)[]): string {
+  return methodes.map((m) => METHODE_MESURE_LABELS[m] ?? m).join(', ')
+}
+
+// ── Conclusion ──────────────────────────────────────────────────────────────────
+function drawConclusion(pdf: jsPDF, allPoints: PointDebit[], unite: string, startY: number): number {
+  let y = drawSectionHeading(pdf, 'Conclusion', startY) + 2
+
+  const mesures = allPoints.filter((p) => p.debitAvant !== undefined && p.debitApres !== undefined)
+  const incomplets = allPoints.length - mesures.length
+  const totalAvant = mesures.reduce((s, p) => s + (p.debitAvant ?? 0), 0)
+  const totalApres = mesures.reduce((s, p) => s + (p.debitApres  ?? 0), 0)
+  const ecart = totalApres - totalAvant
+  const varMoy = mesures.length > 0
+    ? mesures.reduce((s, p) => s + (p.debitAvant ? ((p.debitApres! - p.debitAvant) / p.debitAvant) * 100 : 0), 0) / mesures.length
+    : null
+
+  const paragraph = (text: string) => {
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8.5)
+    pdf.setTextColor(...DGRAY)
+    const lines = pdf.splitTextToSize(text, UW) as string[]
+    pdf.text(lines, ML, y)
+    y += lines.length * 4.2 + 4
+  }
+
+  if (mesures.length === 0) {
+    paragraph(
+      `Aucun point de mesure ne dispose de débits complets avant et après nettoyage, ce qui ne permet pas d'établir ` +
+      `de comparaison quantitative pour ce mandat.`
+    )
+    return y
+  }
+
+  paragraph(
+    `Sur ${mesures.length} point${mesures.length > 1 ? 's' : ''} de mesure ${mesures.length > 1 ? 'comportant' : 'comportant'} des débits complets avant et après nettoyage, ` +
+    `le débit total est passé de ${totalAvant.toFixed(0)} ${unite} à ${totalApres.toFixed(0)} ${unite}, soit un écart global de ` +
+    `${ecart >= 0 ? '+' : ''}${ecart.toFixed(0)} ${unite} (variation moyenne de ${varMoy! >= 0 ? '+' : ''}${varMoy!.toFixed(1)} %).`
+  )
+
+  if (varMoy !== null && varMoy > 5) {
+    paragraph(
+      `Cette variation positive est cohérente avec une amélioration du débit d'air généralement observée à la suite du nettoyage ` +
+      `des conduits de ventilation, sans qu'il soit possible d'en isoler la cause exacte à partir des seules mesures de débit.`
+    )
+  } else if (varMoy !== null && varMoy < -5) {
+    paragraph(
+      `Cette diminution du débit global peut découler de plusieurs facteurs (réglage des dispositifs de balancement, ` +
+      `conditions d'exploitation variables entre les deux relevés, précision de l'instrumentation) et ne permet pas, à elle seule, ` +
+      `de conclure à une problématique du système.`
+    )
+  } else if (varMoy !== null) {
+    paragraph(
+      `Les débits mesurés avant et après nettoyage demeurent globalement comparables, sans variation notable.`
+    )
+  }
+
+  if (incomplets > 0) {
+    paragraph(
+      `Notons que ${incomplets} point${incomplets > 1 ? 's' : ''} de mesure ne dispose${incomplets > 1 ? 'nt' : ''} pas de débit avant et après complet ` +
+      `et n'${incomplets > 1 ? 'ont' : 'a'} pas été inclus dans le calcul de variation moyenne ci-dessus.`
+    )
+  }
+
+  return y
 }
 
 // ── Exporteur principal ───────────────────────────────────────────────────────
@@ -314,170 +439,35 @@ export async function generateDebitReport(
   planImages: Record<string, string> = {},
 ): Promise<void> {
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  let pageNum = 1
+  const pageRef = { n: 0 }
 
-  // Pré-chargement des logos
-  const logoDims       = project.logo       ? await getImageDimsPdf(project.logo)       : { w: 0, h: 0 }
-  const logoClientDims = project.logoClient ? await getImageDimsPdf(project.logoClient) : { w: 0, h: 0 }
-
-  // ── Page de garde ────────────────────────────────────────────────────────────
-
-  // Bannière bleue
-  const BANNER_H = 52
-  pdf.setFillColor(...BLUE)
-  pdf.rect(0, 0, PW, BANNER_H, 'F')
-
-  // Titre
-  pdf.setFontSize(20)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setTextColor(...WHITE)
-  pdf.text('MESURES DE DÉBIT D\'AIR', ML, 20)
-
-  pdf.setFontSize(10)
-  pdf.setFont('helvetica', 'normal')
-  pdf.text('Rapport comparatif avant / après nettoyage CVAC', ML, 29)
-
-  // Nom projet + client dans bannière
-  const projLabel = [project.name, project.client].filter(Boolean).join(' — ')
-  if (projLabel) {
-    pdf.setFontSize(9)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text(safe(projLabel), ML, 38)
+  const newPage = async () => {
+    pdf.addPage()
+    pageRef.n++
+    await drawTextPageHeader(pdf, project, pageRef.n, HEADER_LABEL)
   }
 
-  // Date en haut à droite
-  pdf.setFontSize(8)
-  pdf.setFont('helvetica', 'normal')
-  pdf.text(new Date().toLocaleDateString('fr-CA'), PW - MR, 10, { align: 'right' })
+  // ── Page de garde — identique à celle des rapports de nettoyage CVCA ───────────
+  await drawCoverPage(pdf, project, {
+    titre: "Mesures de débit d'air – Mesures avant et après nettoyage des systèmes CVCA",
+  })
 
-  // ── Zone logos ────────────────────────────────────────────────────────────────
-  const LOGO_Y    = BANNER_H + 4
-  const LOGO_H    = 22
-  const LOGO_MAXW = 60
-
-  if (project.logo) {
-    addLogoFit(pdf, project.logo, logoDims, ML, LOGO_Y, LOGO_MAXW, LOGO_H)
+  // ── Résumé exécutif + conditions de mesure ────────────────────────────────────
+  await newPage()
+  let ry = CONTENT_TOP
+  ry = drawResumeExecutif(pdf, project, allPoints, systemes, plansDebit, unite, ry)
+  ry += 3
+  if (ry > CONTENT_BOTTOM - 40) {
+    drawSectionPageFooter(pdf)
+    await newPage()
+    ry = CONTENT_TOP
   }
-  if (project.logoClient) {
-    // logo client aligné à droite
-    const ratio = Math.min(LOGO_MAXW / (logoClientDims.w || 1), LOGO_H / (logoClientDims.h || 1))
-    const lw = (logoClientDims.w || 0) * ratio
-    addLogoFit(pdf, project.logoClient, logoClientDims, PW - MR - lw, LOGO_Y, LOGO_MAXW, LOGO_H)
-  }
+  drawConditionsMesure(pdf, allPoints, unite, ry)
+  drawSectionPageFooter(pdf)
 
-  // Séparateur
-  const SEP_Y = LOGO_Y + LOGO_H + 4
-  pdf.setDrawColor(200, 210, 225)
-  pdf.setLineWidth(0.3)
-  pdf.line(ML, SEP_Y, PW - MR, SEP_Y)
-
-  // ── Informations projet ───────────────────────────────────────────────────────
-  let y = SEP_Y + 5
-
-  function infoRow(label: string, value: string | undefined, cy: number, lx: number, colW: number): number {
-    if (!value) return cy
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(7.5)
-    pdf.setTextColor(...BLUE)
-    pdf.text(label + ' :', lx, cy)
-    pdf.setFont('helvetica', 'normal')
-    pdf.setTextColor(...DGRAY)
-    const wrapped = pdf.splitTextToSize(value, colW - 26)
-    pdf.text(wrapped[0] ?? '', lx + 26, cy)
-    return cy + LINE
-  }
-
-  // Deux colonnes
-  const COL1_X = ML
-  const COL2_X = ML + UW / 2 + 2
-  const COL_W  = UW / 2 - 2
-
-  let y1 = y
-  let y2 = y
-
-  // Colonne gauche — identité client
-  const adresse = [project.adresse, project.ville, project.codePostal].filter(Boolean).join(', ')
-  y1 = infoRow('Client',        project.client,        y1, COL1_X, COL_W)
-  y1 = infoRow('Adresse',       adresse || undefined,  y1, COL1_X, COL_W)
-  y1 = infoRow('Contact',       project.contact,       y1, COL1_X, COL_W)
-  y1 = infoRow('Téléphone',     project.telephone,     y1, COL1_X, COL_W)
-  y1 = infoRow('Adresse client',project.adresseClient, y1, COL1_X, COL_W)
-
-  // Colonne droite — référence contrat
-  y2 = infoRow('Contrat',       project.contrat,         y2, COL2_X, COL_W)
-  y2 = infoRow('Bon de commande',project.bonCommande,    y2, COL2_X, COL_W)
-  y2 = infoRow('Réf. client',   project.referenceClient, y2, COL2_X, COL_W)
-  y2 = infoRow('Mandat',        project.mandat,          y2, COL2_X, COL_W)
-  y2 = infoRow('Émis pour',     project.emisPour,        y2, COL2_X, COL_W)
-
-  y = Math.max(y1, y2) + 2
-
-  // Séparateur léger
-  pdf.setDrawColor(220, 228, 238)
-  pdf.line(ML, y, PW - MR, y)
-  y += 4
-
-  // Personnel
-  let yp = y
-  let yp2 = y
-  if (project.preparePar) {
-    const titre = project.prepareParTitre ? ` (${project.prepareParTitre})` : ''
-    yp = infoRow('Préparé par', project.preparePar + titre, yp, COL1_X, COL_W)
-  }
-  if (project.technicien) {
-    const titre = project.technicienTitre ? ` (${project.technicienTitre})` : ''
-    yp = infoRow('Technicien', project.technicien + titre, yp, COL1_X, COL_W)
-  }
-  if (project.verificateur) {
-    const titre = project.verificateurTitre ? ` (${project.verificateurTitre})` : ''
-    yp2 = infoRow('Vérificateur', project.verificateur + titre, yp2, COL2_X, COL_W)
-  }
-  const dates = [
-    project.dateDebut ? `Début : ${project.dateDebut}` : '',
-    project.dateFin   ? `Fin : ${project.dateFin}` : '',
-  ].filter(Boolean).join('   ')
-  if (dates) yp2 = infoRow('Période', dates, yp2, COL2_X, COL_W)
-
-  y = Math.max(yp, yp2)
-
-  // Bâtiment
-  const batInfos = [
-    project.nomImmeuble    && `Immeuble : ${project.nomImmeuble}`,
-    project.typeBatiment   && `Type : ${project.typeBatiment}`,
-    project.nbEtages       && `Étages : ${project.nbEtages}`,
-    project.nbLogements    && `Logements : ${project.nbLogements}`,
-    project.anneeConstruction && `Année : ${project.anneeConstruction}`,
-  ].filter(Boolean).join('   ')
-  if (batInfos) {
-    y += 2
-    pdf.setDrawColor(220, 228, 238)
-    pdf.line(ML, y, PW - MR, y)
-    y += 4
-    infoRow('Bâtiment', batInfos, y, ML, UW)
-    y += LINE
-  }
-
-  // Description
-  if (project.description) {
-    y += 2
-    pdf.setDrawColor(220, 228, 238)
-    pdf.line(ML, y, PW - MR, y)
-    y += 4
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(7.5)
-    pdf.setTextColor(...BLUE)
-    pdf.text('Description :', ML, y)
-    y += LINE
-    pdf.setFont('helvetica', 'normal')
-    pdf.setTextColor(...DGRAY)
-    const desc = pdf.splitTextToSize(project.description, UW)
-    const shown = desc.slice(0, 3)
-    pdf.text(shown, ML, y)
-    y += shown.length * LINE
-  }
-
-  // ── Sommaire par système (même format que la boîte globale) ─────────────────
-  y += 5
+  // ── Résultats — synthèse générale ──────────────────────────────────────────────
+  await newPage()
+  let y = drawSectionHeading(pdf, 'Résultats — Synthèse générale', CONTENT_TOP) + 3
 
   // Regrouper les points par systèmeId
   const bySystem = new Map<string, PointDebit[]>()
@@ -535,38 +525,40 @@ export async function generateDebitReport(
     y += BOX_H + 3
   }
 
-  // Une boîte par système
-  for (const row of sysRows) {
-    drawSommaire(row.nom, row.count, row.avant, row.apres, false)
-  }
-
-  // Boîte globale (style bleu foncé)
+  // Une boîte par système — seulement s'il y a réellement plus d'un système à comparer,
+  // sinon la boîte totale ci-dessous montrerait déjà exactement les mêmes chiffres.
   const totAvant = allPoints.reduce((s, p) => s + (p.debitAvant ?? 0), 0)
   const totApres = allPoints.reduce((s, p) => s + (p.debitApres  ?? 0), 0)
-  drawSommaire(`Total — tous systèmes (${allPoints.length} points)`, allPoints.length, totAvant, totApres, true)
-
-  drawFooter(pdf)
-
-  // ── Page synthèse par système ─────────────────────────────────────────────────
-  if (systemes.length > 0 || allPoints.some((p) => p.systemeId)) {
-    pdf.addPage()
-    pageNum++
-    drawHeader(pdf, project, pageNum, 'Synthèse par système')
-
-    let sy = 24
-
-    // Grouper les points par système
-    const bySys = new Map<string, PointDebit[]>()
-    for (const pt of allPoints) {
-      const key = pt.systemeId ?? '__none__'
-      if (!bySys.has(key)) bySys.set(key, [])
-      bySys.get(key)!.push(pt)
+  if (sysRows.length > 1) {
+    for (const row of sysRows) {
+      drawSommaire(row.nom, row.count, row.avant, row.apres, false)
     }
+    drawSommaire(`Total — tous systèmes (${allPoints.length} points)`, allPoints.length, totAvant, totApres, true)
+  } else {
+    const seulNom = sysRows[0]?.nom
+    const titre = seulNom && seulNom !== 'Sans système'
+      ? `Total — Système ${seulNom} (${allPoints.length} points)`
+      : `Total (${allPoints.length} points)`
+    drawSommaire(titre, allPoints.length, totAvant, totApres, true)
+  }
 
-    // Tableaux détail par système
-    for (const [sysId, pts] of bySys) {
+  drawSectionPageFooter(pdf)
+
+  // ── Résultats — par système ────────────────────────────────────────────────────
+  // Toujours affiché — la colonne « Plan » indique de quel plan provient chaque point,
+  // puisqu'un même système peut regrouper des points situés sur plusieurs plans.
+  if (allPoints.length > 0) {
+    await newPage()
+    let sy = drawSectionHeading(pdf, 'Résultats par système', CONTENT_TOP) + 3
+
+    // Tableaux détail par système (regroupement déjà calculé plus haut dans bySystem)
+    for (const [sysId, pts] of bySystem) {
       const nom = sysId === '__none__' ? 'Sans système' : (systemes.find((s) => s.id === sysId)?.nom ?? sysId)
-      if (sy > PH - 50) { pdf.addPage(); pageNum++; drawHeader(pdf, project, pageNum, 'Synthèse par système (suite)'); sy = 24 }
+      if (sy > CONTENT_BOTTOM - 20) {
+        drawSectionPageFooter(pdf)
+        await newPage()
+        sy = drawSectionHeading(pdf, 'Résultats par système (suite)', CONTENT_TOP) + 3
+      }
 
       pdf.setFontSize(8)
       pdf.setFont('helvetica', 'bold')
@@ -574,14 +566,14 @@ export async function generateDebitReport(
       pdf.text(`-- ${nom}`, ML, sy + 4)
       sy += 8
 
-      sy = drawTable(pdf, pts, unite, sy, systemes)
+      sy = await drawTable(pdf, project, pts, unite, sy, systemes, pageRef, 'plan', plansDebit)
       sy += 6
     }
 
-    drawFooter(pdf)
+    drawSectionPageFooter(pdf)
   }
 
-  // ── Pages par plan ───────────────────────────────────────────────────────────
+  // ── Résultats — détaillés par plan (plans annotés, un plan = ses points seulement) ─
   for (const plan of plansDebit) {
     const points = allPoints
       .filter((p) => p.planDebitId === plan.id)
@@ -590,11 +582,8 @@ export async function generateDebitReport(
     if (points.length === 0) continue
 
     // Page plan + image
-    pdf.addPage()
-    pageNum++
-    drawHeader(pdf, project, pageNum, `Plan : ${plan.name}`)
-
-    let py = 22
+    await newPage()
+    let py = drawSectionHeading(pdf, `Résultats détaillés — Plan : ${plan.name}`, CONTENT_TOP) + 3
 
     // Image du plan pré-rendue (capturée depuis l'UI)
     const imgData = planImages[plan.id]
@@ -614,22 +603,15 @@ export async function generateDebitReport(
     py = drawLegend(pdf, py) + 2
 
     // Tableau pour ce plan
-    py = drawTable(pdf, points, unite, py, systemes)
+    py = await drawTable(pdf, project, points, unite, py, systemes, pageRef)
 
-    drawFooter(pdf)
+    drawSectionPageFooter(pdf)
   }
 
-  // ── Page tableau synthèse tous plans ─────────────────────────────────────────
-  if (plansDebit.length > 1) {
-    pdf.addPage()
-    pageNum++
-    drawHeader(pdf, project, pageNum, 'Tableau récapitulatif — tous les plans')
-
-    let ty = 24
-    ty = drawLegend(pdf, ty) + 2
-    ty = drawTable(pdf, allPoints, unite, ty, systemes)
-    drawFooter(pdf)
-  }
+  // ── Conclusion ─────────────────────────────────────────────────────────────────
+  await newPage()
+  drawConclusion(pdf, allPoints, unite, CONTENT_TOP)
+  drawSectionPageFooter(pdf)
 
   // ── Téléchargement ────────────────────────────────────────────────────────────
   const filename = `Mesures-debit_${(project.name || 'projet').replace(/[^a-zA-Z0-9]/g, '-')}_${new Date().toISOString().slice(0, 10)}.pdf`

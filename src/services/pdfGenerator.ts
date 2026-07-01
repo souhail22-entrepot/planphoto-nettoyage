@@ -81,7 +81,7 @@ function projectAdresse(project: Project): string {
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE DE COUVERTURE — même design exact que l'inspection
 // ─────────────────────────────────────────────────────────────────────────────
-async function drawCoverPage(pdf: jsPDF, project: Project): Promise<void> {
+export async function drawCoverPage(pdf: jsPDF, project: Project, opts?: { titre?: string }): Promise<void> {
   const cpW  = 210, cpH = 297
   const cpML = 15,  cpMR = 15
   const cpUW = cpW - cpML - cpMR  // 180 mm
@@ -130,6 +130,9 @@ async function drawCoverPage(pdf: jsPDF, project: Project): Promise<void> {
     ['ADRESSE :', cpAddr],
   ]
   if (safe(project.mandat)) cpInfoRows.push(['MANDAT :', safe(project.mandat)])
+  const rapportRef = [safe(project.numeroRapport), safe(project.versionRapport) && `Rév. ${safe(project.versionRapport)}`]
+    .filter(Boolean).join(' — ')
+  if (rapportRef) cpInfoRows.push(['N° RAPPORT :', rapportRef])
 
   for (const [lbl, val] of cpInfoRows) {
     if (!val) continue
@@ -144,7 +147,7 @@ async function drawCoverPage(pdf: jsPDF, project: Project): Promise<void> {
   // ── Titre principal — aligné à droite, milieu de page ────────────────────
   const titleY = 148
   const rightX = cpML + cpUW
-  const titreBrut = safe(project.titreRapport) || "Rapport d'intervention – Nettoyage des systèmes de ventilation"
+  const titreBrut = opts?.titre || safe(project.titreRapport) || "Rapport d'intervention – Nettoyage des systèmes de ventilation"
   // Découper sur le tiret/dash long pour afficher sur 2 lignes si présent
   const titreParts = titreBrut.split(/\s*[–—-]\s*/)
   pdf.setFontSize(17); pdf.setFont('helvetica', 'bolditalic'); pdf.setTextColor(0, 0, 0)
@@ -724,7 +727,7 @@ async function drawCartouche(pdf: jsPDF, project: Project, plan: Plan, tileLabel
 // ─────────────────────────────────────────────────────────────────────────────
 // EN-TÊTE SECTION A4 — même design inspection, "RAPPORT DE NETTOYAGE" en bleu
 // ─────────────────────────────────────────────────────────────────────────────
-async function drawSectionPageHeader(pdf: jsPDF, project: Project): Promise<void> {
+export async function drawSectionPageHeader(pdf: jsPDF, project: Project, boxLabel = 'RAPPORT DE NETTOYAGE'): Promise<void> {
   const x = S_ML, y = S_MT, w = S_UW, h = S_HDR_H
   const logoW = 52
 
@@ -785,7 +788,7 @@ async function drawSectionPageHeader(pdf: jsPDF, project: Project): Promise<void
 
   pdf.setTextColor(255, 255, 255)
   pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9)
-  pdf.text('RAPPORT DE NETTOYAGE', bx, midY - 1, { align: 'center' })
+  pdf.text(boxLabel, bx, midY - 1, { align: 'center' })
   pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8)
   pdf.text(dateStr, bx, midY + 7, { align: 'center' })
 
@@ -796,7 +799,7 @@ async function drawSectionPageHeader(pdf: jsPDF, project: Project): Promise<void
 // ─────────────────────────────────────────────────────────────────────────────
 // PIED DE PAGE SECTION — identique à l'inspection
 // ─────────────────────────────────────────────────────────────────────────────
-function drawSectionPageFooter(pdf: jsPDF): void {
+export function drawSectionPageFooter(pdf: jsPDF): void {
   const x = S_ML, y = S_PH - S_MB - S_FTR_H, w = S_UW
   pdf.setDrawColor(...BLUE); pdf.setLineWidth(0.5)
   pdf.line(x, y, x + w, y)
@@ -811,7 +814,10 @@ function drawSectionPageFooter(pdf: jsPDF): void {
 // ─────────────────────────────────────────────────────────────────────────────
 // EN-TÊTE RAPPORT ÉCRIT — même design inspection, titre nettoyage
 // ─────────────────────────────────────────────────────────────────────────────
-async function drawTextPageHeader(pdf: jsPDF, project: Project, pageNum = 0): Promise<void> {
+export async function drawTextPageHeader(
+  pdf: jsPDF, project: Project, pageNum = 0,
+  reportLabel = 'Rapport de nettoyage — conduits de ventilation',
+): Promise<void> {
   const x       = S_ML
   const y       = S_MT
   const rightX  = x + S_UW
@@ -832,7 +838,7 @@ async function drawTextPageHeader(pdf: jsPDF, project: Project, pageNum = 0): Pr
     pdf.setFont('helvetica', 'normal')
     ry += 5
   }
-  pdf.text('Rapport de nettoyage — conduits de ventilation', rightX, ry, { align: 'right' })
+  pdf.text(reportLabel, rightX, ry, { align: 'right' })
   ry += 5
   if (project.name) {
     const nameLines = pdf.splitTextToSize(safe(project.name), halfW) as string[]

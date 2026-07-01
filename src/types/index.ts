@@ -414,6 +414,8 @@ export interface Project {
   documentsConnexes?: string
   bonCommande?: string
   emisPour?: string
+  numeroRapport?: string
+  versionRapport?: string
   logo?: string
   logoClient?: string
   standards?: string[]
